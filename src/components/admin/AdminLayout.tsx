@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Package, FolderTree, Layers, Image, Wand2, CalendarHeart,
   Mail, Settings, FileText, Search as SearchIcon, BarChart3, LogOut,
@@ -232,7 +232,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
         {/* Page content */}
         <main className="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
-          {children}
+          {children ?? <Outlet />}
         </main>
       </div>
     </div>

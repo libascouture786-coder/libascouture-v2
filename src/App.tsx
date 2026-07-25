@@ -72,32 +72,24 @@ function App() {
                   <Route index element={<AdminLogin />} />
                   <Route path="forgot-password" element={<AdminForgotPassword />} />
                   <Route path="reset-password" element={<AdminResetPassword />} />
-                  <Route
-                    path="*"
-                    element={
-                      <ProtectedRoute>
-                        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-ivory-50"><Loader /></div>}>
-                          <Routes>
-                            <Route path="dashboard" element={<AdminDashboard />} />
-                            <Route path="products" element={<AdminProducts />} />
-                            <Route path="products/new" element={<AdminProductForm />} />
-                            <Route path="products/:id/edit" element={<AdminProductForm />} />
-                            <Route path="media" element={<AdminMedia />} />
-                            <Route path="homepage" element={<AdminHomepage />} />
-                            <Route path="custom-requests" element={<AdminCustomRequests />} />
-                            <Route path="appointments" element={<AdminAppointments />} />
-                            <Route path="enquiries" element={<AdminEnquiries />} />
-                            <Route path="pages" element={<AdminPages />} />
-                            <Route path="seo" element={<AdminSeo />} />
-                            <Route path="analytics" element={<AdminAnalytics />} />
-                            <Route path="settings" element={<AdminSettings />} />
-                            <Route path="categories" element={<AdminCategories />} />
-                            <Route path="collections" element={<AdminCategories />} />
-                          </Routes>
-                        </Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
+                  <Route element={<ProtectedRoute><Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-ivory-50"><Loader /></div>}><Outlet /></Suspense></ProtectedRoute>}>
+                    <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="products" element={<AdminProducts />} />
+                    <Route path="products/new" element={<AdminProductForm />} />
+                    <Route path="products/:id" element={<AdminProductForm />} />
+                    <Route path="products/:id/edit" element={<AdminProductForm />} />
+                    <Route path="media" element={<AdminMedia />} />
+                    <Route path="homepage" element={<AdminHomepage />} />
+                    <Route path="custom-requests" element={<AdminCustomRequests />} />
+                    <Route path="appointments" element={<AdminAppointments />} />
+                    <Route path="enquiries" element={<AdminEnquiries />} />
+                    <Route path="pages" element={<AdminPages />} />
+                    <Route path="seo" element={<AdminSeo />} />
+                    <Route path="analytics" element={<AdminAnalytics />} />
+                    <Route path="settings" element={<AdminSettings />} />
+                    <Route path="categories" element={<AdminCategories />} />
+                    <Route path="collections" element={<AdminCategories />} />
+                  </Route>
                 </Route>
               </Routes>
             </Suspense>
