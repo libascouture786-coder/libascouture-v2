@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Copy, Loader2, Plus, X, Upload,
@@ -44,6 +44,33 @@ export function AdminProductForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (files: FileList) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of imageFiles) {
+        const ext = file.name.split('.').pop() ?? 'jpg';
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', upsert: false });
+        if (error) throw error;
+        const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
+        uploaded.push(pub.publicUrl);
+      }
+      setImageUrls((prev) => [...prev, ...uploaded]);
+      setErrors((prev) => { const next = { ...prev }; delete next.images; return next; });
+      notify(`${uploaded.length} image${uploaded.length > 1 ? 's' : ''} added.`, 'success');
+    } catch {
+      notify('Failed to upload image(s). Please try again.', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const [form, setForm] = useState({
     title: '', slug: '', code: '', excerpt: '', description: '', story: '',
@@ -398,9 +425,30 @@ export function AdminProductForm() {
         {activeSection === 'media' && (
           <div className="space-y-5">
             <Field label="Gallery Images *" error={errors.images}>
-              <div className="rounded-luxury border-2 border-dashed border-navy-100 p-6 text-center">
-                <Upload size={28} strokeWidth={1.25} className="mx-auto text-gold-500" />
-                <p className="mt-3 text-sm font-light text-charcoal-500">Drag & drop images or paste URLs below</p>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragActive(false);
+                  handleFileUpload(e.dataTransfer.files);
+                }}
+                className={`cursor-pointer rounded-luxury border-2 border-dashed p-6 text-center transition-colors ${dragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100'}`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => { if (e.target.files) handleFileUpload(e.target.files); e.target.value = ''; }}
+                  className="hidden"
+                />
+                <Upload size={28} strokeWidth={1.25} className={`mx-auto text-gold-500 ${uploading ? 'animate-pulse' : ''}`} />
+                <p className="mt-3 text-sm font-light text-charcoal-500">{uploading ? 'Uploading...' : 'Drag & drop images or paste URLs below'}</p>
                 <p className="mt-1 text-xs font-light text-charcoal-300">5–15 images recommended</p>
               </div>
             </Field>
