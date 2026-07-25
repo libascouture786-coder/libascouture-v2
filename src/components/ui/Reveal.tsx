@@ -37,7 +37,11 @@ export function Reveal({
       { threshold, rootMargin: '0px 0px -8% 0px' },
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    const fallback = window.setTimeout(() => setVisible(true), 1200);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(fallback);
+    };
   }, [threshold]);
 
   const Tag = as as 'div';

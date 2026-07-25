@@ -129,6 +129,12 @@
     opacity: 1;
     transform: translateY(0);
   }
+  @media (scripting: none) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
   .zoom-wrap {
     @apply overflow-hidden;
