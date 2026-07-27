@@ -43,6 +43,7 @@ const AdminSeo = lazy(() => import('@/routes/admin/AdminSeo').then((m) => ({ def
 const AdminAnalytics = lazy(() => import('@/routes/admin/AdminAnalytics').then((m) => ({ default: m.AdminAnalytics })));
 const AdminSettings = lazy(() => import('@/routes/admin/AdminSettings').then((m) => ({ default: m.AdminSettings })));
 const AdminCategories = lazy(() => import('@/routes/admin/AdminCategories').then((m) => ({ default: m.AdminCategories })));
+const AdminQuickCollection = lazy(() => import('@/routes/admin/AdminQuickCollection').then((m) => ({ default: m.AdminQuickCollection })));
 
 function App() {
   return (
@@ -89,6 +90,7 @@ function App() {
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="categories" element={<AdminCategories />} />
                     <Route path="collections" element={<AdminCategories />} />
+                    <Route path="quick-collection" element={<AdminQuickCollection />} />
                   </Route>
                 </Route>
               </Routes>

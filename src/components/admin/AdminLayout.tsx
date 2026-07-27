@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
-  LayoutDashboard, Package, FolderTree, Layers, Image, Wand2, CalendarHeart,
+  LayoutDashboard, Package, FolderTree, Layers, Image, Wand2, CalendarHeart, Sparkles,
   Mail, Settings, FileText, Search as SearchIcon, BarChart3, LogOut,
   Bell, Menu, Check, AlertCircle, Info, Globe,
 } from 'lucide-react';
@@ -17,6 +17,7 @@ const navItems = [
   { label: 'Products', href: '/admin/products', icon: Package },
   { label: 'Categories', href: '/admin/categories', icon: FolderTree },
   { label: 'Collections', href: '/admin/collections', icon: Layers },
+  { label: 'Quick Collection Entry', href: '/admin/quick-collection', icon: Sparkles },
   { label: 'Media Library', href: '/admin/media', icon: Image },
   { label: 'Custom Design Requests', href: '/admin/custom-requests', icon: Wand2 },
   { label: 'Appointments', href: '/admin/appointments', icon: CalendarHeart },

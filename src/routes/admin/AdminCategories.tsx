@@ -1,7 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import {
   Plus, Trash2, Save, Loader2, X, Search, Image as ImageIcon,
-  Package, Check, Layers,
+  Package, Check, Layers, Zap,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import {
@@ -30,6 +31,7 @@ const emptyForm: CollectionForm = {
 };
 
 export function AdminCategories() {
+  const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Collection | null>(null);
@@ -138,9 +140,14 @@ export function AdminCategories() {
           <h1 className="text-h2 font-serif font-medium text-navy-900">Collections</h1>
           <p className="mt-1 text-sm font-light text-charcoal-500">{collections.length} collections</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-1.5 rounded-luxury bg-navy-900 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800">
-          <Plus size={14} /> New Collection
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/admin/quick-collection')} className="flex items-center gap-1.5 rounded-luxury border border-gold-300 bg-gold-50 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-gold-800 transition-colors hover:bg-gold-100">
+            <Zap size={14} /> Quick Entry
+          </button>
+          <button onClick={openCreate} className="flex items-center gap-1.5 rounded-luxury bg-navy-900 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800">
+            <Plus size={14} /> New Collection
+          </button>
+        </div>
       </div>
 
       {loading ? (
