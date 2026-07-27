@@ -1,101 +1,53 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, Loader2, ChevronDown, ChevronUp, Trash2,
-  GripVertical, Save, Eye, Plus, Image as ImageIcon,
-  Check, AlertCircle,
+  ArrowLeft, Upload, Loader2, Save, Eye, Plus, Image as ImageIcon,
+  Check, AlertCircle, Layers, Sparkles, CopyCheck,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { logActivity, insertCollection, setCollectionProducts } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
+import { fabricOptions } from '@/config/customisation';
+import { QuickProductCard } from './QuickProductCard';
 import {
-  fabricOptions, colorSwatches,
-} from '@/config/customisation';
+  type QuickProduct, type CollectionForm, emptyCollection,
+  occasionOptions, productTypeOptions, accessoryOptions, workTypeOptions,
+  customisationLevelOptions, componentOptions, customisationOptionList,
+  makeProduct,
+} from './quick-collection-types';
 
-/* ── Option sets (reuse existing config) ─────────────────────────── */
-const occasionOptions = ['Wedding', 'Engagement', 'Other Functions'] as const;
+const AUTOSAVE_KEY = 'quick-collection-draft';
+const AUTOSAVE_INTERVAL = 5000;
 
-const productTypeOptions = [
-  'Bridal Lehenga', 'Reception', 'Engagement', 'Nikah', 'Walima',
-  'Mehendi', 'Haldi', 'Sangeet', 'Saree', 'Suit', 'Sharara',
-  'Gharara', 'Anarkali', 'Indo Western',
-] as const;
-
-const accessoryOptions = [
-  'Potli', 'Tassels (Latkan)', 'Extra Belt', 'Second Dupatta',
-  'Veil Dupatta', 'Cape', 'Jacket', 'Can Can',
-] as const;
-
-const workTypeOptions = ['Hand Work', 'Machine Work', 'Mix Work'] as const;
-
-const customisationLevelOptions = [
-  'Fully Customisable', 'Partially Customisable', 'Not Customisable',
-] as const;
-
-const componentOptions = [
-  'Lehenga', 'Choli / Blouse', 'Dupatta', 'Second Dupatta',
-  'Veil', 'Cape', 'Jacket', 'Belt',
-] as const;
-
-const customisationOptionList = [
-  'Colour Change', 'Fabric Change', 'Blouse', 'Sleeves', 'Neckline',
-  'Double Dupatta', 'Veil', 'Trail', 'Potli', 'Heavy Embroidery',
-  'Light Embroidery', 'Other Requests',
-] as const;
-
-/* ── Types ────────────────────────────────────────────────────────── */
-type QuickProduct = {
-  id: string;
-  imageUrl: string;
-  name: string;
-  code: string;
-  color: string;
-  // optional — only used when "More Details" expanded
-  expanded: boolean;
-  fabric_main: string;
-  work_type: string;
-  product_type: string;
-  components: string[];
-  accessories: string[];
-  customisation_options: string[];
-  customisation_level: string;
-  description: string;
-  seo_title: string;
-  seo_description: string;
+type AutosaveState = {
+  collection: CollectionForm;
+  products: QuickProduct[];
+  savedAt: number;
 };
 
-type CollectionForm = {
-  name: string;
-  slug: string;
-  banner_image: string;
-  occasion: string;
-  description: string;
-};
+function loadDraft(): AutosaveState | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AutosaveState;
+    if (!parsed.products || parsed.products.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
-const emptyCollection: CollectionForm = {
-  name: '', slug: '', banner_image: '', occasion: 'Wedding', description: '',
-};
+function saveDraft(collection: CollectionForm, products: QuickProduct[]) {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ collection, products, savedAt: Date.now() }));
+  } catch {
+    /* storage full or unavailable */
+  }
+}
 
-function makeProduct(imageUrl: string): QuickProduct {
-  return {
-    id: crypto.randomUUID(),
-    imageUrl,
-    name: '',
-    code: '',
-    color: '',
-    expanded: false,
-    fabric_main: '',
-    work_type: 'Hand Work',
-    product_type: '',
-    components: [],
-    accessories: [],
-    customisation_options: [],
-    customisation_level: 'Fully Customisable',
-    description: '',
-    seo_title: '',
-    seo_description: '',
-  };
+function clearDraft() {
+  localStorage.removeItem(AUTOSAVE_KEY);
 }
 
 export function AdminQuickCollection() {
@@ -110,17 +62,42 @@ export function AdminQuickCollection() {
   const [bannerDragActive, setBannerDragActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [restored, setRestored] = useState(false);
+  const [applyAllExpanded, setApplyAllExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const dragIdRef = useRef<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  /* ── Image upload (10–50 at once) ──────────────────────────────── */
+  /* ── Restore draft on mount ─────────────────────────────────────── */
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft) {
+      setCollection(draft.collection);
+      setProducts(draft.products.map((p) => ({ ...p, expanded: false })));
+      setRestored(true);
+    }
+  }, []);
+
+  /* ── Autosave ───────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (products.length === 0 && !collection.name) return;
+    setAutosaveStatus('saving');
+    const t = setTimeout(() => {
+      saveDraft(collection, products);
+      setAutosaveStatus('saved');
+    }, AUTOSAVE_INTERVAL);
+    return () => clearTimeout(t);
+  }, [collection, products]);
+
+  /* ── Image upload (parallel for speed) ──────────────────────────── */
   const handleImageUpload = useCallback(async (files: FileList) => {
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
     setUploading(true);
     try {
-      const uploaded: string[] = [];
-      for (const file of imageFiles) {
+      const uploadPromises = imageFiles.map(async (file) => {
         const ext = file.name.split('.').pop() ?? 'jpg';
         const path = `${crypto.randomUUID()}.${ext}`;
         const { error } = await supabase.storage
@@ -128,17 +105,28 @@ export function AdminQuickCollection() {
           .upload(path, file, { cacheControl: '3600', upsert: false });
         if (error) throw error;
         const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
-        uploaded.push(pub.publicUrl);
-      }
+        return pub.publicUrl;
+      });
+      const uploaded = await Promise.all(uploadPromises);
       const newProducts = uploaded.map((url) => makeProduct(url));
-      setProducts((prev) => [...prev, ...newProducts]);
-      notify(`${uploaded.length} image${uploaded.length > 1 ? 's' : ''} uploaded — ${newProducts.length} product card${newProducts.length > 1 ? 's' : ''} created.`, 'success');
+      setProducts((prev) => {
+        const next = [...prev, ...newProducts];
+        return next.map((p, i) => {
+          if (p.code || p.name) return p;
+          return {
+            ...p,
+            code: `LC-${String(i + 1).padStart(3, '0')}`,
+            name: `Design ${i + 1}`,
+          };
+        });
+      });
+      notify(`${uploaded.length} image${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success');
     } catch {
       notify('Failed to upload images. Please try again.', 'error');
     } finally {
       setUploading(false);
     }
-  }, [products.length, notify]);
+  }, [notify]);
 
   /* ── Banner upload ─────────────────────────────────────────────── */
   const handleBannerUpload = useCallback(async (files: FileList) => {
@@ -162,6 +150,16 @@ export function AdminQuickCollection() {
     }
   }, [notify]);
 
+  /* ── Replace image ──────────────────────────────────────────────── */
+  const handleReplaceImage = useCallback(async (id: string, file: File) => {
+    const ext = file.name.split('.').pop() ?? 'jpg';
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', upsert: false });
+    if (error) { notify('Failed to replace image.', 'error'); return; }
+    const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, imageUrl: pub.publicUrl } : p)));
+  }, [notify]);
+
   /* ── Product card operations ───────────────────────────────────── */
   const updateProduct = useCallback((id: string, patch: Partial<QuickProduct>) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -171,20 +169,25 @@ export function AdminQuickCollection() {
     setProducts((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  const toggleExpand = useCallback((id: string) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, expanded: !p.expanded } : p)));
-  }, []);
-
-  const moveProduct = useCallback((id: string, direction: 'up' | 'down') => {
+  const duplicateProduct = useCallback((id: string) => {
     setProducts((prev) => {
       const idx = prev.findIndex((p) => p.id === id);
       if (idx === -1) return prev;
-      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const copy: QuickProduct = {
+        ...prev[idx],
+        id: crypto.randomUUID(),
+        name: `${prev[idx].name} (Copy)`,
+        code: '',
+        expanded: false,
+      };
       const next = [...prev];
-      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      next.splice(idx + 1, 0, copy);
       return next;
     });
+  }, []);
+
+  const toggleExpand = useCallback((id: string) => {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, expanded: !p.expanded } : p)));
   }, []);
 
   const toggleArray = useCallback((id: string, field: keyof QuickProduct, value: string) => {
@@ -195,22 +198,78 @@ export function AdminQuickCollection() {
     }));
   }, []);
 
+  /* ── Drag & drop sorting ────────────────────────────────────────── */
+  const handleDragStart = useCallback((id: string) => { dragIdRef.current = id; }, []);
+  const handleDragEnter = useCallback((id: string) => { setDragOverId(id); }, []);
+  const handleDragEnd = useCallback(() => {
+    const dragId = dragIdRef.current;
+    const overId = dragOverId;
+    dragIdRef.current = null;
+    setDragOverId(null);
+    if (!dragId || !overId || dragId === overId) return;
+    setProducts((prev) => {
+      const fromIdx = prev.findIndex((p) => p.id === dragId);
+      const toIdx = prev.findIndex((p) => p.id === overId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  }, [dragOverId]);
+
+  /* ── Apply to all ───────────────────────────────────────────────── */
+  const [applyAll, setApplyAll] = useState({
+    fabric_main: '', work_type: '', product_type: '',
+    components: [] as string[], accessories: [] as string[],
+    customisation_options: [] as string[], customisation_level: '',
+    description: '', seo_title: '', seo_description: '',
+  });
+
+  const toggleApplyArray = (field: 'components' | 'accessories' | 'customisation_options', value: string) => {
+    setApplyAll((prev) => {
+      const arr = prev[field];
+      return { ...prev, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] };
+    });
+  };
+
+  const applyToAll = () => {
+    const patch: Partial<QuickProduct> = {};
+    if (applyAll.fabric_main) patch.fabric_main = applyAll.fabric_main;
+    if (applyAll.work_type) patch.work_type = applyAll.work_type;
+    if (applyAll.product_type) patch.product_type = applyAll.product_type;
+    if (applyAll.customisation_level) patch.customisation_level = applyAll.customisation_level;
+    if (applyAll.description) patch.description = applyAll.description;
+    if (applyAll.seo_title) patch.seo_title = applyAll.seo_title;
+    if (applyAll.seo_description) patch.seo_description = applyAll.seo_description;
+    if (applyAll.components.length > 0) patch.components = applyAll.components;
+    if (applyAll.accessories.length > 0) patch.accessories = applyAll.accessories;
+    if (applyAll.customisation_options.length > 0) patch.customisation_options = applyAll.customisation_options;
+
+    if (Object.keys(patch).length === 0) {
+      notify('Select at least one field to apply.', 'error');
+      return;
+    }
+    setProducts((prev) => prev.map((p) => ({ ...p, ...patch })));
+    notify(`Applied to all ${products.length} products.`, 'success');
+  };
+
   /* ── Validation ────────────────────────────────────────────────── */
   const validationErrors = useMemo(() => {
     const errs: Record<string, string> = {};
     if (!collection.name.trim()) errs.collectionName = 'Collection name is required';
     if (products.length === 0) errs.products = 'Upload at least one product image';
-    products.forEach((p, i) => {
-      if (!p.name.trim()) errs[`name-${p.id}`] = `Product ${i + 1}: Name required`;
-      if (!p.code.trim()) errs[`code-${p.id}`] = `Product ${i + 1}: Design number required`;
+    products.forEach((p) => {
+      if (!p.name.trim()) errs[`name-${p.id}`] = 'Name required';
+      if (!p.code.trim()) errs[`code-${p.id}`] = 'Design number required';
     });
     return errs;
   }, [collection.name, products]);
 
   const isValid = Object.keys(validationErrors).length === 0;
 
-  /* ─� Counts ─────────────────────────────────────────────────────── */
-  const completedCount = products.filter((p) => p.name.trim() && p.code.trim()).length;
+  /* ── Counts ─────────────────────────────────────────────────────── */
+  const completedCount = useMemo(() => products.filter((p) => p.name.trim() && p.code.trim()).length, [products]);
   const remainingCount = products.length - completedCount;
 
   /* ── Save: create collection + every product individually ──────── */
@@ -224,7 +283,6 @@ export function AdminQuickCollection() {
     try {
       const slug = collection.slug || collection.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-      // 1. Create the collection
       const col = await insertCollection({
         name: collection.name.trim(),
         slug,
@@ -236,7 +294,6 @@ export function AdminQuickCollection() {
       if (!col) throw new Error('Failed to create collection');
       const collectionId = col.id;
 
-      // 2. Create each product individually
       const createdProductIds: string[] = [];
       for (let i = 0; i < products.length; i++) {
         const p = products[i];
@@ -298,7 +355,6 @@ export function AdminQuickCollection() {
         const productId = newProd?.id;
         if (!productId) throw new Error(`Failed to create product ${i + 1}`);
 
-        // Insert product image
         const { error: imgErr } = await supabase.from('product_images').insert({
           product_id: productId,
           url: p.imageUrl,
@@ -312,21 +368,20 @@ export function AdminQuickCollection() {
         setSaveProgress({ done: i + 1, total: products.length });
       }
 
-      // 3. Link all products to the collection
       await setCollectionProducts(collectionId, createdProductIds);
 
-      // 4. Set cover product to first product
       if (createdProductIds.length > 0) {
         await supabase.from('collections').update({ cover_product_id: createdProductIds[0] }).eq('id', collectionId);
       }
 
       await logActivity('collection_created', `Quick-created collection "${collection.name}" with ${createdProductIds.length} products`, 'collection', collectionId);
 
+      clearDraft();
       notify(publish
         ? `Collection published with ${createdProductIds.length} products.`
         : `Collection saved as draft with ${createdProductIds.length} products.`, 'success');
       navigate('/admin/collections');
-    } catch (err) {
+    } catch {
       notify('Failed to save collection. Please try again.', 'error');
     } finally {
       setSaving(false);
@@ -347,6 +402,16 @@ export function AdminQuickCollection() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {autosaveStatus === 'saved' && products.length > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-light text-green-600">
+              <Check size={11} /> Auto-saved
+            </span>
+          )}
+          {autosaveStatus === 'saving' && products.length > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-light text-charcoal-400">
+              <Loader2 size={11} className="animate-spin" /> Saving...
+            </span>
+          )}
           <button
             onClick={() => handleSave(false)}
             disabled={saving || products.length === 0}
@@ -363,6 +428,14 @@ export function AdminQuickCollection() {
           </button>
         </div>
       </div>
+
+      {/* Restored banner */}
+      {restored && products.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-luxury border border-blue-100 bg-blue-50/50 px-4 py-2.5 text-xs text-blue-700">
+          <span>Restored {products.length} product cards from your last session.</span>
+          <button onClick={() => { clearDraft(); setProducts([]); setCollection(emptyCollection); setRestored(false); }} className="font-medium text-blue-800 hover:underline">Discard</button>
+        </div>
+      )}
 
       {/* Progress bar during save */}
       {saving && saveProgress.total > 0 && (
@@ -476,22 +549,24 @@ export function AdminQuickCollection() {
 
       {/* STEP 2 — QUICK PRODUCT UPLOAD */}
       <section className="rounded-luxury-lg border border-navy-50 bg-white p-6 shadow-soft sm:p-8">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy-900 text-xs font-medium text-ivory-100">2</span>
             <h2 className="text-lg font-serif font-medium text-navy-900">Quick Product Upload</h2>
           </div>
           {products.length > 0 && (
-            <div className="flex items-center gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-navy-700">
+                <Layers size={13} /> {products.length} Uploaded
+              </span>
               <span className="flex items-center gap-1.5 font-medium text-green-600">
-                <Check size={13} /> {completedCount} Ready
+                <Check size={13} /> {completedCount} Completed
               </span>
               {remainingCount > 0 && (
                 <span className="flex items-center gap-1.5 font-medium text-gold-700">
-                  <AlertCircle size={13} /> {remainingCount} Need info
+                  <AlertCircle size={13} /> {remainingCount} Remaining
                 </span>
               )}
-              <span className="font-light text-charcoal-400">{products.length} total</span>
             </div>
           )}
         </div>
@@ -526,289 +601,175 @@ export function AdminQuickCollection() {
           <p className="mb-4 text-xs text-red-500">{validationErrors.products}</p>
         )}
 
+        {/* Apply to All */}
+        {products.length > 0 && (
+          <div className="mb-6 overflow-hidden rounded-luxury border border-gold-200 bg-gold-50/30">
+            <button
+              onClick={() => setApplyAllExpanded(!applyAllExpanded)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gold-50/50"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-gold-900">
+                <Sparkles size={15} /> Apply to All Products
+              </span>
+              <span className="text-xs font-light text-gold-700">
+                {applyAllExpanded ? 'Collapse' : 'Expand'}
+              </span>
+            </button>
+            {applyAllExpanded && (
+              <div className="border-t border-gold-100 p-4">
+                <p className="mb-3 text-xs font-light text-charcoal-500">Set values once and apply them to every product. Only non-empty fields are applied.</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Fabric</label>
+                    <select
+                      value={applyAll.fabric_main}
+                      onChange={(e) => setApplyAll((prev) => ({ ...prev, fabric_main: e.target.value }))}
+                      className="input-luxury !py-2 text-sm appearance-none"
+                    >
+                      <option value="">Skip</option>
+                      {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Work</label>
+                    <select
+                      value={applyAll.work_type}
+                      onChange={(e) => setApplyAll((prev) => ({ ...prev, work_type: e.target.value }))}
+                      className="input-luxury !py-2 text-sm appearance-none"
+                    >
+                      <option value="">Skip</option>
+                      {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Type</label>
+                    <select
+                      value={applyAll.product_type}
+                      onChange={(e) => setApplyAll((prev) => ({ ...prev, product_type: e.target.value }))}
+                      className="input-luxury !py-2 text-sm appearance-none"
+                    >
+                      <option value="">Skip</option>
+                      {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation</label>
+                    <select
+                      value={applyAll.customisation_level}
+                      onChange={(e) => setApplyAll((prev) => ({ ...prev, customisation_level: e.target.value }))}
+                      className="input-luxury !py-2 text-sm appearance-none"
+                    >
+                      <option value="">Skip</option>
+                      {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Description</label>
+                    <textarea
+                      rows={2}
+                      value={applyAll.description}
+                      onChange={(e) => setApplyAll((prev) => ({ ...prev, description: e.target.value }))}
+                      className="input-luxury resize-none text-sm"
+                      placeholder="Leave empty to skip..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Components</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {componentOptions.map((c) => (
+                        <button key={c} type="button" onClick={() => toggleApplyArray('components', c)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.components.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                          {applyAll.components.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Accessories</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {accessoryOptions.map((a) => (
+                        <button key={a} type="button" onClick={() => toggleApplyArray('accessories', a)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.accessories.includes(a) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                          {applyAll.accessories.includes(a) && <Check size={10} className="mr-0.5 inline" />}{a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation Options</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {customisationOptionList.map((c) => (
+                        <button key={c} type="button" onClick={() => toggleApplyArray('customisation_options', c)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.customisation_options.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                          {applyAll.customisation_options.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Title</label>
+                      <input type="text" value={applyAll.seo_title} onChange={(e) => setApplyAll((prev) => ({ ...prev, seo_title: e.target.value }))} className="input-luxury !py-2 text-sm" placeholder="Leave empty to skip..." />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Description</label>
+                      <input type="text" value={applyAll.seo_description} onChange={(e) => setApplyAll((prev) => ({ ...prev, seo_description: e.target.value }))} className="input-luxury !py-2 text-sm" placeholder="Leave empty to skip..." />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={applyToAll}
+                  className="mt-4 flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400"
+                >
+                  <CopyCheck size={14} /> Apply to All {products.length} Products
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Product cards grid */}
         {products.length > 0 && (
-          <div className="space-y-3">
-            {products.map((p, i) => (
-              <QuickProductCard
-                key={p.id}
-                product={p}
-                index={i}
-                total={products.length}
-                errors={validationErrors}
-                onUpdate={updateProduct}
-                onRemove={removeProduct}
-                onToggleExpand={toggleExpand}
-                onMove={moveProduct}
-                onToggleArray={toggleArray}
-              />
-            ))}
+          <>
+            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Click any card for quick actions.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {products.map((p, i) => (
+                <QuickProductCard
+                  key={p.id}
+                  product={p}
+                  index={i}
+                  nameErr={validationErrors[`name-${p.id}`]}
+                  codeErr={validationErrors[`code-${p.id}`]}
+                  isDragging={dragOverId === p.id}
+                  onUpdate={updateProduct}
+                  onRemove={removeProduct}
+                  onDuplicate={duplicateProduct}
+                  onReplaceImage={handleReplaceImage}
+                  onToggleExpand={toggleExpand}
+                  onToggleArray={toggleArray}
+                  onDragStart={handleDragStart}
+                  onDragEnter={handleDragEnter}
+                  onDragEnd={handleDragEnd}
+                />
+              ))}
+            </div>
 
             {/* Add more images button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-luxury border-2 border-dashed border-navy-100 py-4 text-sm font-medium text-charcoal-500 transition-colors hover:border-gold-300 hover:bg-ivory-50 hover:text-navy-900"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-luxury border-2 border-dashed border-navy-100 py-4 text-sm font-medium text-charcoal-500 transition-colors hover:border-gold-300 hover:bg-ivory-50 hover:text-navy-900"
             >
               <Plus size={16} /> Upload more images
             </button>
-          </div>
+          </>
         )}
       </section>
     </AdminLayout>
-  );
-}
-
-/* ── Quick Product Card ───────────────────────────────────────────── */
-
-function QuickProductCard({
-  product,
-  index,
-  total,
-  errors,
-  onUpdate,
-  onRemove,
-  onToggleExpand,
-  onMove,
-  onToggleArray,
-}: {
-  product: QuickProduct;
-  index: number;
-  total: number;
-  errors: Record<string, string>;
-  onUpdate: (id: string, patch: Partial<QuickProduct>) => void;
-  onRemove: (id: string) => void;
-  onToggleExpand: (id: string) => void;
-  onMove: (id: string, direction: 'up' | 'down') => void;
-  onToggleArray: (id: string, field: keyof QuickProduct, value: string) => void;
-}) {
-  const nameErr = errors[`name-${product.id}`];
-  const codeErr = errors[`code-${product.id}`];
-  const isReady = product.name.trim() && product.code.trim();
-
-  return (
-    <div className={`rounded-luxury border bg-white transition-all ${isReady ? 'border-green-200' : 'border-gold-200'}`}>
-      {/* Card header — always visible */}
-      <div className="flex items-start gap-4 p-4">
-        {/* Reorder handle */}
-        <div className="flex flex-col items-center gap-1 pt-1">
-          <button
-            onClick={() => onMove(product.id, 'up')}
-            disabled={index === 0}
-            className="text-charcoal-300 transition-colors hover:text-navy-900 disabled:opacity-30"
-            aria-label="Move up"
-          >
-            <ChevronUp size={14} />
-          </button>
-          <GripVertical size={14} className="text-charcoal-200" />
-          <button
-            onClick={() => onMove(product.id, 'down')}
-            disabled={index === total - 1}
-            className="text-charcoal-300 transition-colors hover:text-navy-900 disabled:opacity-30"
-            aria-label="Move down"
-          >
-            <ChevronDown size={14} />
-          </button>
-        </div>
-
-        {/* Product image */}
-        <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-luxury bg-navy-50">
-          <img src={product.imageUrl} alt={product.name || `Product ${index + 1}`} className="h-full w-full object-cover" loading="lazy" />
-        </div>
-
-        {/* Required fields */}
-        <div className="grid flex-1 gap-3 sm:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Name *</label>
-            <input
-              type="text"
-              value={product.name}
-              onChange={(e) => onUpdate(product.id, { name: e.target.value })}
-              className="input-luxury !py-2 text-sm"
-              placeholder="e.g. Crimson Zardozi Lehenga"
-            />
-            {nameErr && <p className="mt-0.5 text-[10px] text-red-500">{nameErr}</p>}
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Design Number *</label>
-            <input
-              type="text"
-              value={product.code}
-              onChange={(e) => onUpdate(product.id, { code: e.target.value })}
-              className="input-luxury !py-2 text-sm"
-              placeholder="e.g. LC-BL-001"
-            />
-            {codeErr && <p className="mt-0.5 text-[10px] text-red-500">{codeErr}</p>}
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Colour</label>
-            <select
-              value={product.color}
-              onChange={(e) => onUpdate(product.id, { color: e.target.value })}
-              className="input-luxury !py-2 text-sm appearance-none"
-            >
-              <option value="">Select colour</option>
-              {colorSwatches.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onToggleExpand(product.id)}
-            className="flex items-center gap-1 rounded-luxury px-2.5 py-1.5 text-[11px] font-medium text-charcoal-600 transition-colors hover:bg-ivory-200"
-          >
-            {product.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            More Details
-          </button>
-          <button
-            onClick={() => onRemove(product.id)}
-            className="flex h-8 w-8 items-center justify-center rounded-luxury text-red-500 transition-colors hover:bg-red-50"
-            aria-label="Remove product"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded — optional fields */}
-      {product.expanded && (
-        <div className="border-t border-navy-50 bg-ivory-50/50 p-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Fabric */}
-            <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Fabric</label>
-              <select
-                value={product.fabric_main}
-                onChange={(e) => onUpdate(product.id, { fabric_main: e.target.value })}
-                className="input-luxury !py-2 text-sm appearance-none"
-              >
-                <option value="">Select fabric</option>
-                {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-
-            {/* Work Type */}
-            <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Work</label>
-              <select
-                value={product.work_type}
-                onChange={(e) => onUpdate(product.id, { work_type: e.target.value })}
-                className="input-luxury !py-2 text-sm appearance-none"
-              >
-                {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-
-            {/* Product Type */}
-            <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Type</label>
-              <select
-                value={product.product_type}
-                onChange={(e) => onUpdate(product.id, { product_type: e.target.value })}
-                className="input-luxury !py-2 text-sm appearance-none"
-              >
-                <option value="">Select type</option>
-                {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            {/* Customisation Level */}
-            <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation</label>
-              <select
-                value={product.customisation_level}
-                onChange={(e) => onUpdate(product.id, { customisation_level: e.target.value })}
-                className="input-luxury !py-2 text-sm appearance-none"
-              >
-                {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* Description */}
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Description</label>
-              <textarea
-                rows={2}
-                value={product.description}
-                onChange={(e) => onUpdate(product.id, { description: e.target.value })}
-                className="input-luxury resize-none text-sm"
-                placeholder="Optional product description..."
-              />
-            </div>
-
-            {/* Components */}
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Components</label>
-              <div className="flex flex-wrap gap-1.5">
-                {componentOptions.map((c) => (
-                  <Chip key={c} label={c} selected={product.components.includes(c)} onClick={() => onToggleArray(product.id, 'components', c)} />
-                ))}
-              </div>
-            </div>
-
-            {/* Accessories */}
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Accessories</label>
-              <div className="flex flex-wrap gap-1.5">
-                {accessoryOptions.map((a) => (
-                  <Chip key={a} label={a} selected={product.accessories.includes(a)} onClick={() => onToggleArray(product.id, 'accessories', a)} />
-                ))}
-              </div>
-            </div>
-
-            {/* Customisation Options */}
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation Options</label>
-              <div className="flex flex-wrap gap-1.5">
-                {customisationOptionList.map((c) => (
-                  <Chip key={c} label={c} selected={product.customisation_options.includes(c)} onClick={() => onToggleArray(product.id, 'customisation_options', c)} />
-                ))}
-              </div>
-            </div>
-
-            {/* SEO */}
-            <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Title</label>
-              <input
-                type="text"
-                value={product.seo_title}
-                onChange={(e) => onUpdate(product.id, { seo_title: e.target.value })}
-                className="input-luxury !py-2 text-sm"
-                placeholder="Optional SEO title..."
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Description</label>
-              <input
-                type="text"
-                value={product.seo_description}
-                onChange={(e) => onUpdate(product.id, { seo_description: e.target.value })}
-                className="input-luxury !py-2 text-sm"
-                placeholder="Optional SEO description..."
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Chip toggle button ───────────────────────────────────────────── */
-function Chip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-        selected
-          ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-soft'
-          : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300 hover:bg-ivory-50'
-      }`}
-    >
-      {selected && <Check size={11} className="mr-1 inline" />}
-      {label}
-    </button>
   );
 }
