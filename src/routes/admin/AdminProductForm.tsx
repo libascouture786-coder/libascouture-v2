@@ -256,22 +256,22 @@ export function AdminProductForm() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!form.title.trim()) errs.title = 'Product name is required';
     if (!form.code.trim()) errs.code = 'Design number is required';
-    if (!form.product_type) errs.product_type = 'Product type is required';
     if (imageUrls.length === 0) errs.images = 'At least one product image is required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const handleSave = async (publish = false) => {
-    if (!validate()) { notify('Please complete all required fields.', 'error'); return; }
+    if (!validate()) { notify('Please complete required fields (image + design number).', 'error'); return; }
     setSaving(true);
-    const slug = form.slug || form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const title = form.title.trim() || form.code.trim();
+    const slug = form.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const safeThumb = Math.min(thumbnailIndex, Math.max(0, imageUrls.length - 1));
     const { whats_included, category_id, ...rest } = form;
     const productData = {
       ...rest,
+      title,
       slug,
       category_id: category_id || null,
       video_url: videoUrl || null,
@@ -298,12 +298,12 @@ export function AdminProductForm() {
       if (isEdit && id) {
         const { error } = await supabase.from('products').update(productData).eq('id', id);
         if (error) throw error;
-        await logActivity('product_updated', `Updated product: ${form.title}`, 'product', id);
+        await logActivity('product_updated', `Updated product: ${title}`, 'product', id);
       } else {
         const { data, error } = await supabase.from('products').insert(productData).select('id').maybeSingle();
         if (error) throw error;
         productId = data?.id;
-        await logActivity('product_added', `Added product: ${form.title}`, 'product', productId);
+        await logActivity('product_added', `Added product: ${title}`, 'product', productId);
       }
 
       if (productId && imageUrls.length > 0) {
@@ -311,7 +311,7 @@ export function AdminProductForm() {
         const imgInserts = imageUrls.map((url, i) => ({
           product_id: productId,
           url,
-          alt: form.image_alt_text || form.title,
+          alt: form.image_alt_text || title,
           sort_order: i,
           view_type: i === safeThumb ? 'hero' : 'gallery',
         }));

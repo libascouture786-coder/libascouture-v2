@@ -3,7 +3,7 @@ import {
   ChevronDown, ChevronUp, Trash2, Copy, RefreshCw, GripVertical,
   Check,
 } from 'lucide-react';
-import { colorSwatches, fabricOptions } from '@/config/customisation';
+import { colorSwatches } from '@/config/customisation';
 import type { QuickProduct } from './quick-collection-types';
 import {
   workTypeOptions, productTypeOptions, componentOptions,
@@ -13,7 +13,6 @@ import {
 type Props = {
   product: QuickProduct;
   index: number;
-  nameErr?: string;
   codeErr?: string;
   isDragging: boolean;
   onUpdate: (id: string, patch: Partial<QuickProduct>) => void;
@@ -28,11 +27,10 @@ type Props = {
 };
 
 function QuickProductCardBase({
-  product, index, nameErr, codeErr, isDragging,
+  product, index, codeErr, isDragging,
   onUpdate, onRemove, onDuplicate, onReplaceImage, onToggleExpand, onToggleArray,
   onDragStart, onDragEnter, onDragEnd,
 }: Props) {
-  const isReady = !!(product.name.trim() && product.code.trim());
   const replaceInputId = `replace-img-${product.id}`;
 
   return (
@@ -44,14 +42,12 @@ function QuickProductCardBase({
       onDragEnd={onDragEnd}
       className={`group relative flex flex-col rounded-luxury border bg-white transition-all ${
         isDragging ? 'opacity-40 scale-95' : ''
-      } ${isReady ? 'border-green-200' : 'border-gold-200'}`}
+      } border-navy-100`}
     >
-      {/* Drag handle overlay */}
       <div className="absolute left-1.5 top-1.5 z-10 cursor-grab rounded-md p-0.5 text-charcoal-300 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
         <GripVertical size={14} />
       </div>
 
-      {/* Image */}
       <div className="relative aspect-[4/5] overflow-hidden rounded-t-luxury bg-navy-50">
         <img
           src={product.imageUrl}
@@ -60,7 +56,6 @@ function QuickProductCardBase({
           loading="lazy"
           draggable={false}
         />
-        {/* Quick actions overlay */}
         <div className="absolute inset-x-0 top-0 flex justify-end gap-1 bg-gradient-to-b from-navy-950/40 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
           <label
             htmlFor={replaceInputId}
@@ -91,37 +86,32 @@ function QuickProductCardBase({
             <Trash2 size={13} />
           </button>
         </div>
-        {/* Position badge */}
         <span className="absolute bottom-1.5 left-1.5 rounded-full bg-navy-950/70 px-2 py-0.5 text-[9px] font-medium text-ivory-100 backdrop-blur-sm">
           {index + 1}
         </span>
-        {/* Status indicator */}
-        <span className={`absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full ${isReady ? 'bg-green-400' : 'bg-gold-400'}`} />
       </div>
 
-      {/* Fields */}
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <div>
-          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Name *</label>
-          <input
-            type="text"
-            value={product.name}
-            onChange={(e) => onUpdate(product.id, { name: e.target.value })}
-            className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
-            placeholder="Product name"
-          />
-          {nameErr && <p className="mt-0.5 text-[9px] text-red-500">{nameErr}</p>}
-        </div>
         <div>
           <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Design No. *</label>
           <input
             type="text"
             value={product.code}
-            onChange={(e) => onUpdate(product.id, { code: e.target.value })}
+            onChange={(e) => onUpdate(product.id, { code: e.target.value, name: product.name === `Design ${index + 1}` || !product.name ? e.target.value : product.name })}
             className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
             placeholder="LC-001"
           />
           {codeErr && <p className="mt-0.5 text-[9px] text-red-500">{codeErr}</p>}
+        </div>
+        <div>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Name (optional)</label>
+          <input
+            type="text"
+            value={product.name}
+            onChange={(e) => onUpdate(product.id, { name: e.target.value })}
+            className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
+            placeholder="Auto from design no."
+          />
         </div>
         <div>
           <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Colour</label>
@@ -135,7 +125,6 @@ function QuickProductCardBase({
           </select>
         </div>
 
-        {/* More Details toggle */}
         <button
           onClick={() => onToggleExpand(product.id)}
           className="flex items-center justify-center gap-1 rounded-md border border-navy-50 py-1.5 text-[10px] font-medium text-charcoal-500 transition-colors hover:bg-ivory-100"
@@ -145,21 +134,20 @@ function QuickProductCardBase({
         </button>
       </div>
 
-      {/* Expanded optional fields */}
       {product.expanded && (
         <div className="border-t border-navy-50 bg-ivory-50/50 p-3">
+          <p className="mb-2 text-[9px] font-light text-charcoal-400">Empty fields inherit from collection defaults.</p>
           <div className="grid gap-2.5">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Fabric</label>
-                <select
+                <input
+                  type="text"
                   value={product.fabric_main}
                   onChange={(e) => onUpdate(product.id, { fabric_main: e.target.value })}
-                  className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                >
-                  <option value="">Select</option>
-                  {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                </select>
+                  className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
+                  placeholder="Inherit"
+                />
               </div>
               <div>
                 <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Work</label>
@@ -168,6 +156,7 @@ function QuickProductCardBase({
                   onChange={(e) => onUpdate(product.id, { work_type: e.target.value })}
                   className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
                 >
+                  <option value="">Inherit</option>
                   {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
                 </select>
               </div>
@@ -178,7 +167,7 @@ function QuickProductCardBase({
                   onChange={(e) => onUpdate(product.id, { product_type: e.target.value })}
                   className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
                 >
-                  <option value="">Select</option>
+                  <option value="">Inherit</option>
                   {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -189,6 +178,7 @@ function QuickProductCardBase({
                   onChange={(e) => onUpdate(product.id, { customisation_level: e.target.value })}
                   className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
                 >
+                  <option value="">Inherit</option>
                   {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -201,7 +191,7 @@ function QuickProductCardBase({
                 value={product.description}
                 onChange={(e) => onUpdate(product.id, { description: e.target.value })}
                 className="w-full resize-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                placeholder="Optional..."
+                placeholder="Inherit"
               />
             </div>
 
@@ -238,7 +228,7 @@ function QuickProductCardBase({
                   value={product.seo_title}
                   onChange={(e) => onUpdate(product.id, { seo_title: e.target.value })}
                   className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                  placeholder="Optional..."
+                  placeholder="Inherit"
                 />
               </div>
               <div>
@@ -248,7 +238,7 @@ function QuickProductCardBase({
                   value={product.seo_description}
                   onChange={(e) => onUpdate(product.id, { seo_description: e.target.value })}
                   className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                  placeholder="Optional..."
+                  placeholder="Inherit"
                 />
               </div>
             </div>

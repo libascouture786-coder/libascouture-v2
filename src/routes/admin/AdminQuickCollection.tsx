@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Loader2, Save, Eye, Plus, Image as ImageIcon,
-  Check, AlertCircle, Layers, Sparkles, CopyCheck,
+  Check, AlertCircle, Layers, Settings2,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
@@ -11,14 +11,14 @@ import { useToast } from '@/context/ToastContext';
 import { fabricOptions } from '@/config/customisation';
 import { QuickProductCard } from './QuickProductCard';
 import {
-  type QuickProduct, type CollectionForm, emptyCollection,
+  type QuickProduct, type CollectionForm, type CollectionDefaults, emptyCollection,
   occasionOptions, productTypeOptions, accessoryOptions, workTypeOptions,
   customisationLevelOptions, componentOptions, customisationOptionList,
-  makeProduct,
+  makeProduct, resolveProduct,
 } from './quick-collection-types';
 
 const AUTOSAVE_KEY = 'quick-collection-draft';
-const AUTOSAVE_INTERVAL = 5000;
+const AUTOSAVE_INTERVAL = 4000;
 
 type AutosaveState = {
   collection: CollectionForm;
@@ -64,7 +64,7 @@ export function AdminQuickCollection() {
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
-  const [applyAllExpanded, setApplyAllExpanded] = useState(false);
+  const [defaultsExpanded, setDefaultsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const dragIdRef = useRef<string | null>(null);
@@ -108,17 +108,14 @@ export function AdminQuickCollection() {
         return pub.publicUrl;
       });
       const uploaded = await Promise.all(uploadPromises);
-      const newProducts = uploaded.map((url) => makeProduct(url));
       setProducts((prev) => {
-        const next = [...prev, ...newProducts];
-        return next.map((p, i) => {
-          if (p.code || p.name) return p;
-          return {
-            ...p,
-            code: `LC-${String(i + 1).padStart(3, '0')}`,
-            name: `Design ${i + 1}`,
-          };
+        const startIdx = prev.length;
+        const newProducts = uploaded.map((url, i) => {
+          const n = startIdx + i + 1;
+          const code = `LC-${String(n).padStart(3, '0')}`;
+          return makeProduct(url, code, code);
         });
+        return [...prev, ...newProducts];
       });
       notify(`${uploaded.length} image${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success');
     } catch {
@@ -218,50 +215,28 @@ export function AdminQuickCollection() {
     });
   }, [dragOverId]);
 
-  /* ── Apply to all ───────────────────────────────────────────────── */
-  const [applyAll, setApplyAll] = useState({
-    fabric_main: '', work_type: '', product_type: '',
-    components: [] as string[], accessories: [] as string[],
-    customisation_options: [] as string[], customisation_level: '',
-    description: '', seo_title: '', seo_description: '',
-  });
+  /* ── Collection defaults ───────────────────────────────────────── */
+  const updateDefaults = (patch: Partial<CollectionDefaults>) => {
+    setCollection((prev) => ({ ...prev, defaults: { ...prev.defaults, ...patch } }));
+  };
 
-  const toggleApplyArray = (field: 'components' | 'accessories' | 'customisation_options', value: string) => {
-    setApplyAll((prev) => {
-      const arr = prev[field];
-      return { ...prev, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] };
+  const toggleDefaultsArray = (field: 'components' | 'accessories' | 'customisation_options', value: string) => {
+    setCollection((prev) => {
+      const arr = prev.defaults[field];
+      return { ...prev, defaults: { ...prev.defaults, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] } };
     });
   };
 
-  const applyToAll = () => {
-    const patch: Partial<QuickProduct> = {};
-    if (applyAll.fabric_main) patch.fabric_main = applyAll.fabric_main;
-    if (applyAll.work_type) patch.work_type = applyAll.work_type;
-    if (applyAll.product_type) patch.product_type = applyAll.product_type;
-    if (applyAll.customisation_level) patch.customisation_level = applyAll.customisation_level;
-    if (applyAll.description) patch.description = applyAll.description;
-    if (applyAll.seo_title) patch.seo_title = applyAll.seo_title;
-    if (applyAll.seo_description) patch.seo_description = applyAll.seo_description;
-    if (applyAll.components.length > 0) patch.components = applyAll.components;
-    if (applyAll.accessories.length > 0) patch.accessories = applyAll.accessories;
-    if (applyAll.customisation_options.length > 0) patch.customisation_options = applyAll.customisation_options;
-
-    if (Object.keys(patch).length === 0) {
-      notify('Select at least one field to apply.', 'error');
-      return;
-    }
-    setProducts((prev) => prev.map((p) => ({ ...p, ...patch })));
-    notify(`Applied to all ${products.length} products.`, 'success');
-  };
-
-  /* ── Validation ────────────────────────────────────────────────── */
+  /* ── Validation (only image + design number) ────────────────────── */
   const validationErrors = useMemo(() => {
     const errs: Record<string, string> = {};
     if (!collection.name.trim()) errs.collectionName = 'Collection name is required';
     if (products.length === 0) errs.products = 'Upload at least one product image';
+    const seenCodes = new Set<string>();
     products.forEach((p) => {
-      if (!p.name.trim()) errs[`name-${p.id}`] = 'Name required';
-      if (!p.code.trim()) errs[`code-${p.id}`] = 'Design number required';
+      if (!p.code.trim()) errs[`code-${p.id}`] = 'Required';
+      else if (seenCodes.has(p.code.trim().toLowerCase())) errs[`code-${p.id}`] = 'Duplicate';
+      else seenCodes.add(p.code.trim().toLowerCase());
     });
     return errs;
   }, [collection.name, products]);
@@ -269,13 +244,13 @@ export function AdminQuickCollection() {
   const isValid = Object.keys(validationErrors).length === 0;
 
   /* ── Counts ─────────────────────────────────────────────────────── */
-  const completedCount = useMemo(() => products.filter((p) => p.name.trim() && p.code.trim()).length, [products]);
+  const completedCount = useMemo(() => products.filter((p) => p.code.trim()).length, [products]);
   const remainingCount = products.length - completedCount;
 
   /* ── Save: create collection + every product individually ──────── */
   const handleSave = async (publish: boolean) => {
     if (!isValid) {
-      notify('Please complete all required fields (Name, Design Number for every product).', 'error');
+      notify('Please complete required fields (collection name + design number for every product).', 'error');
       return;
     }
     setSaving(true);
@@ -297,36 +272,37 @@ export function AdminQuickCollection() {
       const createdProductIds: string[] = [];
       for (let i = 0; i < products.length; i++) {
         const p = products[i];
-        const productSlug = (p.name.trim() || `design-${Date.now()}-${i}`)
-          .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const resolved = resolveProduct(p, collection.defaults);
+        const title = p.name.trim() || p.code.trim();
+        const productSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         const productData = {
           slug: `${productSlug}-${i + 1}`,
-          title: p.name.trim(),
+          title,
           code: p.code.trim(),
           excerpt: '',
-          description: p.description.trim() || null,
+          description: resolved.description.trim() || null,
           category_id: null,
           category_slug: 'bridal',
           price: null,
           price_on_request: true,
           price_type: 'price_on_request',
           status: publish ? 'made_on_order' : 'signature',
-          work_type: p.work_type || 'handwork',
-          product_type: p.product_type || null,
+          work_type: resolved.work_type || 'handwork',
+          product_type: resolved.product_type || null,
           occasion: collection.occasion,
           occasions: [collection.occasion],
           colors: p.color ? [p.color] : [],
           color: p.color || null,
           color_main: p.color || null,
-          fabric_main: p.fabric_main || null,
-          fabric: p.fabric_main || null,
+          fabric_main: resolved.fabric_main || null,
+          fabric: resolved.fabric_main || null,
           embroidery: [],
-          includes: p.components,
-          accessories: p.accessories,
+          includes: resolved.components,
+          accessories: resolved.accessories,
           hand_work_details: [],
-          customisation_options: p.customisation_options,
-          customisation_level: p.customisation_level || 'Fully Customisable',
-          customisable: p.customisation_level !== 'Not Customisable',
+          customisation_options: resolved.customisation_options,
+          customisation_level: resolved.customisation_level || 'Fully Customisable',
+          customisable: resolved.customisation_level !== 'Not Customisable',
           highlights: [],
           care_instructions: null,
           website_placement: [],
@@ -341,9 +317,9 @@ export function AdminQuickCollection() {
           sort_order: i,
           thumbnail_index: 0,
           video_url: null,
-          seo_title: p.seo_title.trim() || null,
-          seo_description: p.seo_description.trim() || null,
-          image_alt_text: p.name.trim(),
+          seo_title: resolved.seo_title.trim() || null,
+          seo_description: resolved.seo_description.trim() || null,
+          image_alt_text: title,
         };
 
         const { data: newProd, error: prodErr } = await supabase
@@ -358,7 +334,7 @@ export function AdminQuickCollection() {
         const { error: imgErr } = await supabase.from('product_images').insert({
           product_id: productId,
           url: p.imageUrl,
-          alt: p.name.trim(),
+          alt: title,
           sort_order: 0,
           view_type: 'hero',
         });
@@ -398,7 +374,7 @@ export function AdminQuickCollection() {
           </button>
           <div>
             <h1 className="text-h2 font-serif font-medium text-navy-900">Quick Collection Entry</h1>
-            <p className="mt-0.5 text-sm font-light text-charcoal-500">Upload dozens of products into one collection in minutes</p>
+            <p className="mt-0.5 text-sm font-light text-charcoal-500">Upload dozens of products in minutes — only image and design number required</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -475,17 +451,6 @@ export function AdminQuickCollection() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Slug</label>
-            <input
-              type="text"
-              value={collection.slug}
-              onChange={(e) => setCollection((prev) => ({ ...prev, slug: e.target.value }))}
-              className="input-luxury"
-              placeholder="auto-generated from name"
-            />
-          </div>
-
-          <div>
             <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Occasion *</label>
             <div className="grid grid-cols-3 gap-2">
               {occasionOptions.map((o) => (
@@ -505,8 +470,8 @@ export function AdminQuickCollection() {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Banner Image</label>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Banner Image (optional)</label>
             <div
               role="button"
               tabIndex={0}
@@ -528,7 +493,7 @@ export function AdminQuickCollection() {
                   <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-gold-50 text-gold-500">
                     <ImageIcon size={18} strokeWidth={1.5} className={bannerUploading ? 'animate-pulse' : ''} />
                   </div>
-                  <p className="mt-2 text-xs font-medium text-navy-900">{bannerUploading ? 'Uploading...' : 'Upload banner'}</p>
+                  <p className="mt-2 text-xs font-medium text-navy-900">{bannerUploading ? 'Uploading...' : 'Upload banner (optional)'}</p>
                 </>
               )}
             </div>
@@ -544,6 +509,127 @@ export function AdminQuickCollection() {
               placeholder="A brief description of this collection..."
             />
           </div>
+        </div>
+
+        {/* Collection-level defaults — auto-apply to every product */}
+        <div className="mt-6 overflow-hidden rounded-luxury border border-gold-200 bg-gold-50/30">
+          <button
+            onClick={() => setDefaultsExpanded(!defaultsExpanded)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gold-50/50"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-gold-900">
+              <Settings2 size={15} /> Collection Defaults
+              <span className="text-[10px] font-light text-gold-700">— auto-applied to every product</span>
+            </span>
+            <span className="text-xs font-light text-gold-700">{defaultsExpanded ? 'Collapse' : 'Expand'}</span>
+          </button>
+          {defaultsExpanded && (
+            <div className="border-t border-gold-100 p-4">
+              <p className="mb-3 text-xs font-light text-charcoal-500">Set these once and every product inherits them. Any per-product value overrides the default.</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Fabric</label>
+                  <select
+                    value={collection.defaults.fabric_main}
+                    onChange={(e) => updateDefaults({ fabric_main: e.target.value })}
+                    className="input-luxury !py-2 text-sm appearance-none"
+                  >
+                    <option value="">None</option>
+                    {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Work</label>
+                  <select
+                    value={collection.defaults.work_type}
+                    onChange={(e) => updateDefaults({ work_type: e.target.value })}
+                    className="input-luxury !py-2 text-sm appearance-none"
+                  >
+                    {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Type</label>
+                  <select
+                    value={collection.defaults.product_type}
+                    onChange={(e) => updateDefaults({ product_type: e.target.value })}
+                    className="input-luxury !py-2 text-sm appearance-none"
+                  >
+                    <option value="">None</option>
+                    {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation</label>
+                  <select
+                    value={collection.defaults.customisation_level}
+                    onChange={(e) => updateDefaults({ customisation_level: e.target.value })}
+                    className="input-luxury !py-2 text-sm appearance-none"
+                  >
+                    {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Description</label>
+                  <textarea
+                    rows={2}
+                    value={collection.defaults.description}
+                    onChange={(e) => updateDefaults({ description: e.target.value })}
+                    className="input-luxury resize-none text-sm"
+                    placeholder="Applied to every product..."
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Components</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {componentOptions.map((c) => (
+                      <button key={c} type="button" onClick={() => toggleDefaultsArray('components', c)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.components.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                        {collection.defaults.components.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Accessories</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {accessoryOptions.map((a) => (
+                      <button key={a} type="button" onClick={() => toggleDefaultsArray('accessories', a)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.accessories.includes(a) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                        {collection.defaults.accessories.includes(a) && <Check size={10} className="mr-0.5 inline" />}{a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation Options</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {customisationOptionList.map((c) => (
+                      <button key={c} type="button" onClick={() => toggleDefaultsArray('customisation_options', c)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.customisation_options.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
+                        {collection.defaults.customisation_options.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Title</label>
+                    <input type="text" value={collection.defaults.seo_title} onChange={(e) => updateDefaults({ seo_title: e.target.value })} className="input-luxury !py-2 text-sm" placeholder="Applied to every product..." />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Description</label>
+                    <input type="text" value={collection.defaults.seo_description} onChange={(e) => updateDefaults({ seo_description: e.target.value })} className="input-luxury !py-2 text-sm" placeholder="Applied to every product..." />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -594,157 +680,23 @@ export function AdminQuickCollection() {
             <Upload size={22} strokeWidth={1.5} className={uploading ? 'animate-pulse' : ''} />
           </div>
           <p className="mt-3 text-sm font-medium text-navy-900">{uploading ? 'Uploading images...' : 'Drag & drop or click to upload'}</p>
-          <p className="mt-1 text-xs font-light text-charcoal-400">Select 10–50 images at once — one product card is created per image</p>
+          <p className="mt-1 text-xs font-light text-charcoal-400">Select 20–100 images at once — one product card is created per image</p>
         </div>
 
         {validationErrors.products && products.length === 0 && (
           <p className="mb-4 text-xs text-red-500">{validationErrors.products}</p>
         )}
 
-        {/* Apply to All */}
-        {products.length > 0 && (
-          <div className="mb-6 overflow-hidden rounded-luxury border border-gold-200 bg-gold-50/30">
-            <button
-              onClick={() => setApplyAllExpanded(!applyAllExpanded)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gold-50/50"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium text-gold-900">
-                <Sparkles size={15} /> Apply to All Products
-              </span>
-              <span className="text-xs font-light text-gold-700">
-                {applyAllExpanded ? 'Collapse' : 'Expand'}
-              </span>
-            </button>
-            {applyAllExpanded && (
-              <div className="border-t border-gold-100 p-4">
-                <p className="mb-3 text-xs font-light text-charcoal-500">Set values once and apply them to every product. Only non-empty fields are applied.</p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Fabric</label>
-                    <select
-                      value={applyAll.fabric_main}
-                      onChange={(e) => setApplyAll((prev) => ({ ...prev, fabric_main: e.target.value }))}
-                      className="input-luxury !py-2 text-sm appearance-none"
-                    >
-                      <option value="">Skip</option>
-                      {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Work</label>
-                    <select
-                      value={applyAll.work_type}
-                      onChange={(e) => setApplyAll((prev) => ({ ...prev, work_type: e.target.value }))}
-                      className="input-luxury !py-2 text-sm appearance-none"
-                    >
-                      <option value="">Skip</option>
-                      {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Type</label>
-                    <select
-                      value={applyAll.product_type}
-                      onChange={(e) => setApplyAll((prev) => ({ ...prev, product_type: e.target.value }))}
-                      className="input-luxury !py-2 text-sm appearance-none"
-                    >
-                      <option value="">Skip</option>
-                      {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation</label>
-                    <select
-                      value={applyAll.customisation_level}
-                      onChange={(e) => setApplyAll((prev) => ({ ...prev, customisation_level: e.target.value }))}
-                      className="input-luxury !py-2 text-sm appearance-none"
-                    >
-                      <option value="">Skip</option>
-                      {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-3">
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Description</label>
-                    <textarea
-                      rows={2}
-                      value={applyAll.description}
-                      onChange={(e) => setApplyAll((prev) => ({ ...prev, description: e.target.value }))}
-                      className="input-luxury resize-none text-sm"
-                      placeholder="Leave empty to skip..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Components</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {componentOptions.map((c) => (
-                        <button key={c} type="button" onClick={() => toggleApplyArray('components', c)}
-                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.components.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                          {applyAll.components.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Accessories</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {accessoryOptions.map((a) => (
-                        <button key={a} type="button" onClick={() => toggleApplyArray('accessories', a)}
-                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.accessories.includes(a) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                          {applyAll.accessories.includes(a) && <Check size={10} className="mr-0.5 inline" />}{a}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation Options</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {customisationOptionList.map((c) => (
-                        <button key={c} type="button" onClick={() => toggleApplyArray('customisation_options', c)}
-                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${applyAll.customisation_options.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                          {applyAll.customisation_options.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Title</label>
-                      <input type="text" value={applyAll.seo_title} onChange={(e) => setApplyAll((prev) => ({ ...prev, seo_title: e.target.value }))} className="input-luxury !py-2 text-sm" placeholder="Leave empty to skip..." />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Description</label>
-                      <input type="text" value={applyAll.seo_description} onChange={(e) => setApplyAll((prev) => ({ ...prev, seo_description: e.target.value }))} className="input-luxury !py-2 text-sm" placeholder="Leave empty to skip..." />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={applyToAll}
-                  className="mt-4 flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400"
-                >
-                  <CopyCheck size={14} /> Apply to All {products.length} Products
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Product cards grid */}
         {products.length > 0 && (
           <>
-            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Click any card for quick actions.</p>
+            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Only Design Number is required — everything else inherits from collection defaults.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((p, i) => (
                 <QuickProductCard
                   key={p.id}
                   product={p}
                   index={i}
-                  nameErr={validationErrors[`name-${p.id}`]}
                   codeErr={validationErrors[`code-${p.id}`]}
                   isDragging={dragOverId === p.id}
                   onUpdate={updateProduct}
