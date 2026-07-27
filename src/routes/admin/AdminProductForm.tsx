@@ -269,9 +269,11 @@ export function AdminProductForm() {
     setSaving(true);
     const slug = form.slug || form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const safeThumb = Math.min(thumbnailIndex, Math.max(0, imageUrls.length - 1));
+    const { whats_included, category_id, ...rest } = form;
     const productData = {
-      ...form,
+      ...rest,
       slug,
+      category_id: category_id || null,
       video_url: videoUrl || null,
       thumbnail_index: safeThumb,
       price: form.price ? parseFloat(form.price) : null,
@@ -279,7 +281,7 @@ export function AdminProductForm() {
       occasions: form.occasions,
       colors: form.colors,
       embroidery: form.embroidery,
-      includes: form.whats_included,
+      includes: whats_included,
       customisation_options: form.customisation_options,
       accessories: form.accessories,
       hand_work_details: form.hand_work_details,
@@ -328,8 +330,14 @@ export function AdminProductForm() {
   const handleDuplicate = async () => {
     if (!id) return;
     const slugDup = `${form.slug}-copy`;
+    const { whats_included, category_id, ...rest } = form;
     const { error } = await supabase.from('products').insert({
-      ...form, slug: slugDup, code: `${form.code}-COPY`, title: `${form.title} (Copy)`,
+      ...rest,
+      slug: slugDup,
+      category_id: category_id || null,
+      code: `${form.code}-COPY`,
+      title: `${form.title} (Copy)`,
+      includes: whats_included,
       is_active: false, is_featured: false, is_new: false,
     });
     if (!error) { notify('Product duplicated successfully.'); navigate('/admin/products'); }
