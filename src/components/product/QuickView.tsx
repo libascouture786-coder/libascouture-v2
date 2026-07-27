@@ -21,6 +21,7 @@ export function QuickView({ product, onClose }: QuickViewProps) {
   }, [product]);
 
   useEffect(() => {
+    if (!product) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -30,7 +31,7 @@ export function QuickView({ product, onClose }: QuickViewProps) {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [onClose, product]);
 
   if (!product) return null;
 

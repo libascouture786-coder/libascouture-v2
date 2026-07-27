@@ -44,6 +44,44 @@ export type Product = {
   is_new: boolean;
   is_best_seller: boolean;
   customisable: boolean;
+  video_url: string | null;
+  color_main: string | null;
+  color_dupatta1: string | null;
+  fabric_dupatta1: string | null;
+  color_dupatta2: string | null;
+  fabric_dupatta2: string | null;
+  thumbnail_index: number;
+  product_type: string | null;
+  accessories: string[] | null;
+  hand_work_details: string[] | null;
+  customisation_level: string | null;
+  care_instructions: string | null;
+  website_placement: string[] | null;
+  visibility: string | null;
+  priority: string | null;
+  related_product_ids: string[] | null;
+};
+
+export type Collection = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  banner_image: string | null;
+  collection_type: string | null;
+  cover_product_id: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CollectionProduct = {
+  id: string;
+  collection_id: string;
+  product_id: string;
+  sort_order: number;
+  created_at: string;
 };
 
 export type ProductWithImages = Product & {

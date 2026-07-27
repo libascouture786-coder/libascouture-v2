@@ -221,6 +221,68 @@ export async function deleteCategory(id: string) {
   await supabase.from('categories').delete().eq('id', id);
 }
 
+export async function searchProducts(query: string) {
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, title, code')
+    .or(`title.ilike.%${query}%,code.ilike.%${query}%`)
+    .limit(20);
+  if (error) return [];
+  return data ?? [];
+}
+
+/* ── Collections ─────────────────────────────────────────────────── */
+export async function fetchCollections() {
+  const { data, error } = await supabase
+    .from('collections')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if (error) return [];
+  return data ?? [];
+}
+
+export async function insertCollection(col: {
+  name: string;
+  slug: string;
+  description?: string | null;
+  banner_image?: string | null;
+  collection_type?: string | null;
+  cover_product_id?: string | null;
+}) {
+  const { data, error } = await supabase.from('collections').insert(col).select().maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+export async function updateCollection(id: string, updates: Record<string, unknown>) {
+  await supabase.from('collections').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
+}
+
+export async function deleteCollection(id: string) {
+  await supabase.from('collections').delete().eq('id', id);
+}
+
+export async function fetchCollectionProducts(collectionId: string) {
+  const { data, error } = await supabase
+    .from('collection_products')
+    .select('product_id, sort_order')
+    .eq('collection_id', collectionId)
+    .order('sort_order', { ascending: true });
+  if (error) return [];
+  return data ?? [];
+}
+
+export async function setCollectionProducts(collectionId: string, productIds: string[]) {
+  await supabase.from('collection_products').delete().eq('collection_id', collectionId);
+  if (productIds.length === 0) return;
+  const rows = productIds.map((pid, i) => ({
+    collection_id: collectionId,
+    product_id: pid,
+    sort_order: i,
+  }));
+  await supabase.from('collection_products').insert(rows);
+}
+
 /* ── Appointments ────────────────────────────────────────────────── */
 export async function fetchAppointments(status?: string) {
   let query = supabase.from('appointments').select('*').order('created_at', { ascending: false });
