@@ -12,6 +12,7 @@ import { FilterBar, FilterSheet, MobileFilterButton, defaultFilters, applyFilter
 import { supabase } from '@/lib/supabase';
 import { getImage } from '@/config/images';
 import { collections, slugLabels } from '@/config/site';
+import { breadcrumbSchema, SITE_URL } from '@/lib/seo';
 import type { ProductWithImages } from '@/lib/types';
 
 const PAGE_SIZE = 8;
@@ -94,6 +95,11 @@ export function Collections() {
         title={collectionTitle}
         description={collectionExcerpt}
         canonical={`https://libascouture.in/collections${collectionSlug ? `/${collectionSlug}` : ''}`}
+        jsonLd={breadcrumbSchema([
+          { name: 'Home', url: SITE_URL },
+          { name: 'Collections', url: `${SITE_URL}/collections` },
+          ...(collectionSlug ? [{ name: slugLabels[collectionSlug] ?? collectionSlug, url: `${SITE_URL}/collections/${collectionSlug}` }] : []),
+        ])}
       />
       <Breadcrumb items={crumbs} />
 

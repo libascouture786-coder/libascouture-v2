@@ -6,6 +6,7 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { ButtonLink } from '@/components/ui/Button';
 import { getImage } from '@/config/images';
 import { trustPillars, whyChooseUs } from '@/config/site';
+import { localBusinessSchema, breadcrumbSchema, SITE_URL } from '@/lib/seo';
 import { Sparkles, Scissors, Crown, HeartHandshake, Settings2, Layers, UserCheck, PenTool, Focus, ArrowRight } from 'lucide-react';
 
 const trustIcons: Record<string, typeof Sparkles> = { Sparkles, Scissors, Crown, HeartHandshake };
@@ -18,6 +19,13 @@ export function About() {
         title="About"
         description="The story, craftsmanship, and philosophy of LIBAS COUTURE — a luxury bridal couture house in Chandni Chowk, Delhi."
         canonical="https://libascouture.in/about"
+        jsonLd={[
+          localBusinessSchema(),
+          breadcrumbSchema([
+            { name: 'Home', url: SITE_URL },
+            { name: 'About', url: `${SITE_URL}/about` },
+          ]),
+        ]}
       />
       <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'About' }]} />
 

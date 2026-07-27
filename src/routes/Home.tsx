@@ -2,6 +2,7 @@ import { Seo } from '@/components/ui/Seo';
 import { Reveal } from '@/components/ui/Reveal';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { useAppointment } from '@/context/AppointmentContext';
+import { organizationSchema, localBusinessSchema, websiteSchema } from '@/lib/seo';
 import { TrustBar } from '@/components/sections/TrustBar';
 import { SignatureCollections } from '@/components/sections/SignatureCollections';
 import { ShopByOccasion } from '@/components/sections/ShopByOccasion';
@@ -28,6 +29,7 @@ export function Home() {
         title="Luxury Bridal Couture"
         description="LIBAS COUTURE is a luxury bridal couture house in Delhi specializing in bespoke hand embroidery and handcrafted heirloom-quality bridal wear."
         canonical="https://libascouture.in"
+        jsonLd={[organizationSchema(), localBusinessSchema(), websiteSchema()]}
       />
 
       {/* Hero — 100vh cinematic */}

@@ -7,6 +7,7 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { site } from '@/config/site';
 import { getImage } from '@/config/images';
 import { useAppointment } from '@/context/AppointmentContext';
+import { localBusinessSchema, breadcrumbSchema, SITE_URL } from '@/lib/seo';
 
 export function Contact() {
   const { open } = useAppointment();
@@ -17,6 +18,13 @@ export function Contact() {
         title="Contact"
         description="Visit the LIBAS COUTURE atelier in Chandni Chowk, Delhi, or book a private appointment for bespoke bridal couture."
         canonical="https://libascouture.in/contact"
+        jsonLd={[
+          localBusinessSchema(),
+          breadcrumbSchema([
+            { name: 'Home', url: SITE_URL },
+            { name: 'Contact', url: `${SITE_URL}/contact` },
+          ]),
+        ]}
       />
       <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Contact' }]} />
 

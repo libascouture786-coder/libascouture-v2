@@ -16,6 +16,7 @@ import { useAppointment } from '@/context/AppointmentContext';
 import { supabase } from '@/lib/supabase';
 import { site, slugLabels } from '@/config/site';
 import { storage } from '@/lib/storage';
+import { productSchema, breadcrumbSchema, faqSchema, SITE_URL } from '@/lib/seo';
 import type { ProductWithImages } from '@/lib/types';
 
 export function ProductDetail() {
@@ -129,12 +130,39 @@ export function ProductDetail() {
     { q: 'Can I visit the atelier?', a: `Absolutely. Visit us at ${site.address.full} or book a private appointment for a dedicated consultation.` },
   ];
 
+  const heroImage = images[0]?.url;
+  const seoDescription = product.excerpt ?? product.description ?? `${product.title} — bespoke hand-embroidered couture by ${site.name}.`;
+  const canonical = `https://libascouture.in/product/${product.slug}`;
+  const crumbItems = [
+    { name: 'Home', url: SITE_URL },
+    { name: 'Collections', url: `${SITE_URL}/collections` },
+    ...(product.category_slug ? [{ name: slugLabels[product.category_slug] ?? product.category_slug, url: `${SITE_URL}/collections/${product.category_slug}` }] : []),
+    { name: product.title, url: canonical },
+  ];
+
   return (
     <>
       <Seo
         title={product.title}
-        description={product.excerpt ?? product.description ?? site.description}
-        canonical={`https://libascouture.in/product/${product.slug}`}
+        description={seoDescription}
+        canonical={canonical}
+        ogType="product"
+        ogImage={heroImage}
+        jsonLd={[
+          productSchema({
+            title: product.title,
+            description: seoDescription,
+            slug: product.slug,
+            image: heroImage ?? undefined,
+            imageAlt: images[0]?.alt ?? product.title,
+            price: product.price ?? null,
+            category: product.product_type ?? product.category_slug ?? undefined,
+            customisable: product.customisable,
+            sku: product.code,
+          }),
+          breadcrumbSchema(crumbItems),
+          faqSchema(faqs),
+        ]}
       />
       <Breadcrumb
         items={[
