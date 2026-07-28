@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Heart, MessageCircle, CalendarHeart, Phone, Navigation,
@@ -29,6 +29,7 @@ export function ProductDetail() {
   const [activeImg, setActiveImg] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const touchStartX = useRef<number | null>(null);
   const { isSaved, toggle } = useWishlist();
   const { open } = useAppointment();
 
@@ -204,17 +205,41 @@ export function ProductDetail() {
       <Section background="ivory" className="!pt-8">
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
           {/* Gallery */}
-          <div>
+          <div
+            onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => {
+              if (touchStartX.current === null) return;
+              const diff = touchStartX.current - e.changedTouches[0].clientX;
+              if (Math.abs(diff) > 50) {
+                if (diff > 0 && activeImg < images.length - 1) setActiveImg(activeImg + 1);
+                if (diff < 0 && activeImg > 0) setActiveImg(activeImg - 1);
+              }
+              touchStartX.current = null;
+            }}
+          >
             <div
-              className="zoom-wrap relative aspect-[4/5] cursor-pointer overflow-hidden rounded-luxury-lg"
+              className="relative aspect-[4/5] cursor-pointer overflow-hidden rounded-luxury-lg"
               onClick={() => setLightboxOpen(true)}
             >
-              <img
-                src={images[activeImg]?.url ?? images[0]?.url}
-                alt={images[activeImg]?.alt ?? product.title}
-                className="zoom-img"
-                fetchPriority="high"
-              />
+              {images.length > 0 ? (
+                images.map((img, i) => (
+                  <img
+                    key={img.id}
+                    src={img.url}
+                    alt={img.alt ?? product.title}
+                    className={`gallery-img ${i === activeImg ? 'opacity-100' : 'opacity-0'}`}
+                    fetchPriority={i === 0 ? 'high' : 'low'}
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                  />
+                ))
+              ) : (
+                <img
+                  src={images[0]?.url ?? ''}
+                  alt={product.title}
+                  className="gallery-img opacity-100"
+                  fetchPriority="high"
+                />
+              )}
             </div>
             {images.length > 1 && (
               <div className="mt-4 flex gap-3 overflow-x-auto no-scrollbar">
@@ -223,8 +248,8 @@ export function ProductDetail() {
                     key={img.id}
                     onClick={() => setActiveImg(i)}
                     aria-label={`View image ${i + 1}`}
-                    className={`relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-luxury border-2 transition-colors ${
-                      i === activeImg ? 'border-gold-500' : 'border-transparent'
+                    className={`relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-luxury border-2 transition-all duration-luxury ease-luxury ${
+                      i === activeImg ? 'border-gold-500 shadow-soft' : 'border-transparent opacity-70 hover:opacity-100'
                     }`}
                   >
                     <img src={img.url} alt={img.alt ?? product.title} loading="lazy" className="h-full w-full object-cover" />

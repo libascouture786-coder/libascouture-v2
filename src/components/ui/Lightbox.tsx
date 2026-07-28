@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export type LightboxImage = {
@@ -16,6 +16,7 @@ type LightboxProps = {
 
 export function Lightbox({ images, index, onClose, onNavigate }: LightboxProps) {
   const [zoomed, setZoomed] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -30,6 +31,20 @@ export function Lightbox({ images, index, onClose, onNavigate }: LightboxProps) 
       document.body.style.overflow = '';
     };
   }, [index, images.length, onClose, onNavigate]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) onNavigate(index < images.length - 1 ? index + 1 : 0);
+      else onNavigate(index > 0 ? index - 1 : images.length - 1);
+    }
+    touchStartX.current = null;
+  };
 
   const current = images[index];
   if (!current) return null;
@@ -50,7 +65,12 @@ export function Lightbox({ images, index, onClose, onNavigate }: LightboxProps) 
         <X size={20} />
       </button>
 
-      <div className="relative flex h-full w-full items-center justify-center p-4 sm:p-8" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative flex h-full w-full items-center justify-center p-4 sm:p-8"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
           src={current.src}
           alt={current.alt}

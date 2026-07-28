@@ -16,7 +16,9 @@ export function RootLayout() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="flex-1 pb-16 md:pb-0">
-        <Outlet />
+        <div key={pathname} className="page-enter">
+          <Outlet />
+        </div>
       </main>
       <Footer />
       <WhatsAppFloat />

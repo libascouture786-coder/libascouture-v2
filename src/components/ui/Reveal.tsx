@@ -6,6 +6,8 @@ type RevealProps = {
   delay?: number;
   as?: 'div' | 'section' | 'article' | 'li' | 'span';
   threshold?: number;
+  stagger?: boolean;
+  staggerCount?: number;
 };
 
 export function Reveal({
@@ -14,6 +16,7 @@ export function Reveal({
   delay = 0,
   as = 'div',
   threshold = 0.15,
+  stagger = false,
 }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -48,8 +51,8 @@ export function Reveal({
   return (
     <Tag
       ref={ref}
-      className={`reveal ${visible ? 'is-visible' : ''} ${className}`}
-      style={{ transitionDelay: `${delay}ms` }}
+      className={`${stagger ? 'stagger' : 'reveal'} ${visible ? 'is-visible' : ''} ${className}`}
+      style={stagger ? undefined : { transitionDelay: `${delay}ms` }}
     >
       {children}
     </Tag>

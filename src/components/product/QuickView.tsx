@@ -61,12 +61,20 @@ export function QuickView({ product, onClose }: QuickViewProps) {
         <div className="grid gap-0 md:grid-cols-2">
           {/* Gallery */}
           <div className="relative">
-            <div className="zoom-wrap relative aspect-[4/5] overflow-hidden">
-              <img
-                src={images[activeImg]?.url ?? site.contact.whatsappLink}
-                alt={images[activeImg]?.alt ?? product.title}
-                className="h-full w-full object-cover"
-              />
+            <div className="relative aspect-[4/5] overflow-hidden">
+              {images.length > 0 ? (
+                images.map((img, i) => (
+                  <img
+                    key={img.id}
+                    src={img.url}
+                    alt={img.alt ?? product.title}
+                    className={`gallery-img ${i === activeImg ? 'opacity-100' : 'opacity-0'}`}
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                  />
+                ))
+              ) : (
+                <img src={images[0]?.url ?? ''} alt={product.title} className="gallery-img opacity-100" />
+              )}
             </div>
             {images.length > 1 && (
               <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
@@ -75,7 +83,7 @@ export function QuickView({ product, onClose }: QuickViewProps) {
                     key={img.id}
                     onClick={() => setActiveImg(i)}
                     aria-label={`View image ${i + 1}`}
-                    className={`h-2.5 w-2.5 rounded-full transition-colors ${i === activeImg ? 'bg-gold-500' : 'bg-white/60'}`}
+                    className={`h-2.5 w-2.5 rounded-full transition-all duration-luxury ${i === activeImg ? 'scale-125 bg-gold-500' : 'bg-white/60 hover:bg-white/80'}`}
                   />
                 ))}
               </div>
