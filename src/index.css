@@ -157,6 +157,165 @@
   .label-editorial {
     @apply text-[10px] uppercase tracking-[0.25em] text-charcoal-400 font-sans;
   }
+
+  /* ---------- Form elements ---------- */
+
+  .textarea-luxury {
+    @apply input-luxury resize-y min-h-[120px] py-3;
+  }
+
+  .select-luxury {
+    @apply input-luxury cursor-pointer appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352524c' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 12px;
+  }
+
+  .label-luxury {
+    @apply mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-charcoal-600;
+  }
+
+  .helper-text {
+    @apply mt-1.5 text-xs font-light text-charcoal-400;
+  }
+
+  .error-text {
+    @apply mt-1.5 text-xs font-medium text-red-600;
+  }
+
+  .input-error {
+    @apply border-red-400 focus:border-red-400 focus:ring-red-100;
+  }
+
+  .input-success {
+    @apply border-green-400 focus:border-green-400 focus:ring-green-100;
+  }
+
+  /* Checkbox */
+  .checkbox-luxury {
+    @apply h-4 w-4 rounded border-navy-200 text-gold-500 transition-colors duration-luxury focus:ring-2 focus:ring-gold-200 focus:ring-offset-0;
+  }
+
+  /* Radio */
+  .radio-luxury {
+    @apply h-4 w-4 border-navy-200 text-gold-500 transition-colors duration-luxury focus:ring-2 focus:ring-gold-200 focus:ring-offset-0;
+  }
+
+  /* ---------- Badges & Chips ---------- */
+
+  .badge-base {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em];
+  }
+
+  .badge-gold {
+    @apply badge-base bg-gold-50 text-gold-700 border border-gold-200;
+  }
+
+  .badge-navy {
+    @apply badge-base bg-navy-50 text-navy-700 border border-navy-100;
+  }
+
+  .badge-neutral {
+    @apply badge-base bg-ivory-200 text-charcoal-600 border border-navy-100/50;
+  }
+
+  .badge-success {
+    @apply badge-base bg-green-50 text-green-700 border border-green-200;
+  }
+
+  .badge-error {
+    @apply badge-base bg-red-50 text-red-700 border border-red-200;
+  }
+
+  .chip-base {
+    @apply inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-light transition-all duration-luxury ease-luxury;
+  }
+
+  .chip-default {
+    @apply chip-base border-navy-100 bg-white text-charcoal-600 hover:border-gold-400 hover:text-gold-700;
+  }
+
+  .chip-selected {
+    @apply chip-base border-gold-500 bg-gold-500 text-navy-900;
+  }
+
+  /* ---------- Toggle switch ---------- */
+
+  .toggle-luxury {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-luxury ease-luxury focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-100;
+  }
+  .toggle-luxury[data-checked="true"] {
+    @apply bg-gold-500;
+  }
+  .toggle-luxury[data-checked="false"] {
+    @apply bg-navy-200;
+  }
+  .toggle-thumb {
+    @apply pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-soft transition-transform duration-luxury ease-luxury;
+  }
+  .toggle-luxury[data-checked="true"] .toggle-thumb {
+    @apply translate-x-5;
+  }
+  .toggle-luxury[data-checked="false"] .toggle-thumb {
+    @apply translate-x-0.5;
+  }
+
+  /* ---------- Pagination ---------- */
+
+  .page-btn {
+    @apply flex h-9 min-w-9 items-center justify-center rounded-luxury px-3 text-sm font-light transition-all duration-luxury ease-luxury;
+  }
+  .page-btn-default {
+    @apply page-btn text-charcoal-600 hover:bg-ivory-200 hover:text-navy-900;
+  }
+  .page-btn-active {
+    @apply page-btn bg-navy-900 text-ivory-100 shadow-soft;
+  }
+  .page-btn-disabled {
+    @apply page-btn cursor-not-allowed text-charcoal-300;
+  }
+
+  /* ---------- Tabs ---------- */
+
+  .tab-btn {
+    @apply relative pb-3 text-sm font-light tracking-wide transition-colors duration-luxury;
+  }
+  .tab-btn-inactive {
+    @apply tab-btn text-charcoal-400 hover:text-navy-900;
+  }
+  .tab-btn-active {
+    @apply tab-btn text-navy-900 font-medium;
+  }
+  .tab-indicator {
+    @apply absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-gold-400 to-gold-500;
+  }
+
+  /* ---------- Accordion ---------- */
+
+  .accordion-trigger {
+    @apply flex w-full items-center justify-between py-5 text-left transition-colors duration-luxury;
+  }
+  .accordion-content {
+    @apply overflow-hidden transition-all duration-luxury ease-luxury;
+  }
+
+  /* ---------- Modal ---------- */
+
+  .modal-overlay {
+    @apply fixed inset-0 z-[150] flex items-center justify-center bg-navy-950/70 backdrop-blur-md animate-fade-in p-4;
+  }
+  .modal-panel {
+    @apply relative w-full max-w-lg rounded-luxury-lg bg-white shadow-soft-xl animate-scale-in;
+  }
+  .modal-panel-lg {
+    @apply modal-panel max-w-2xl;
+  }
+  .modal-panel-xl {
+    @apply modal-panel max-w-4xl;
+  }
+  .modal-close {
+    @apply absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-charcoal-400 transition-colors duration-luxury hover:bg-ivory-200 hover:text-navy-900;
+  }
 }
 
 @layer utilities {

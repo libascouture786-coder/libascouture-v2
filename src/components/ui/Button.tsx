@@ -1,8 +1,9 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Link, type LinkProps } from 'react-router-dom';
 
-type Variant = 'primary' | 'gold' | 'secondary' | 'tertiary' | 'ghost';
-type Size = 'sm' | 'md' | 'lg';
+type Variant = 'primary' | 'gold' | 'secondary' | 'tertiary' | 'ghost' | 'outline-light';
+type Size = 'sm' | 'md' | 'lg' | 'icon';
 
 const variants: Record<Variant, string> = {
   primary: 'btn-primary',
@@ -10,12 +11,14 @@ const variants: Record<Variant, string> = {
   secondary: 'btn-secondary',
   tertiary: 'btn-tertiary',
   ghost: 'btn-ghost',
+  'outline-light': 'btn-outline-light',
 };
 
 const sizes: Record<Size, string> = {
   sm: 'px-5 py-2.5 text-xs',
   md: '',
   lg: 'px-9 py-4 text-sm',
+  icon: 'h-11 w-11 p-0',
 };
 
 type BaseProps = {
@@ -23,6 +26,7 @@ type BaseProps = {
   size?: Size;
   children: ReactNode;
   className?: string;
+  loading?: boolean;
 };
 
 export function Button({
@@ -30,10 +34,18 @@ export function Button({
   size = 'md',
   children,
   className = '',
+  loading = false,
+  disabled,
   ...rest
 }: BaseProps & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button className={`${variants[variant]} ${sizes[size]} ${className}`} {...rest}>
+    <button
+      className={`${variants[variant]} ${sizes[size]} ${className}`}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
+      {loading && <Loader2 size={16} className="animate-spin" />}
       {children}
     </button>
   );
