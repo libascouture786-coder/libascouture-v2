@@ -11,6 +11,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { AppointmentForm, type AppointmentFormState } from '@/components/appointment/AppointmentForm';
 import { AppointmentConfirmation } from '@/components/appointment/AppointmentConfirmation';
 import { site } from '@/config/site';
+import { getImage } from '@/config/images';
 import { consultationTypes, businessHours, atelierAccessInfo } from '@/config/customisation';
 
 const consultationIcons: Record<string, typeof Store> = {
@@ -47,7 +48,7 @@ export function Appointments() {
       {/* Hero */}
       <section className="relative flex min-h-[45vh] items-center justify-center overflow-hidden bg-navy-900">
         <img
-          src={site.contact.mapsEmbed ? '/assets/images/branding/20260619_122046.jpg.jpeg' : ''}
+          src={getImage('hero.secondary')}
           alt="Book a private consultation at LIBAS COUTURE"
           className="absolute inset-0 h-full w-full object-cover opacity-35"
           fetchPriority="high"

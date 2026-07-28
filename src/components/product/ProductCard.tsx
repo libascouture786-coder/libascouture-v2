@@ -39,7 +39,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
   return (
     <Reveal>
-      <div className="card-luxury group overflow-hidden">
+      <div className="card-editorial group">
         {/* Image */}
         <div className="zoom-wrap relative aspect-[3/4] overflow-hidden rounded-t-luxury-lg">
           <img
@@ -59,18 +59,21 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             />
           )}
 
+          {/* Editorial overlay gradient for depth */}
+          <div className="pointer-events-none absolute inset-0 overlay-editorial opacity-0 transition-opacity duration-luxury group-hover:opacity-100" aria-hidden />
+
           {/* Badges */}
           {badges.length > 0 && (
-            <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+            <div className="absolute left-4 top-4 flex flex-col gap-1.5">
               {badges.map((badge) => (
                 <span
                   key={badge}
-                  className={`rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.1em] ${
+                  className={`rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm ${
                     badge === 'New'
-                      ? 'bg-gold-500 text-navy-900'
+                      ? 'bg-gold-500/95 text-navy-900'
                       : badge === 'Featured'
-                        ? 'bg-navy-900 text-ivory-100'
-                        : 'bg-ivory-100 text-navy-900'
+                        ? 'bg-navy-900/90 text-ivory-100'
+                        : 'bg-ivory-100/90 text-navy-900'
                   }`}
                 >
                   {badge}
@@ -81,20 +84,20 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
           {/* Status badge */}
           {product.status && (
-            <div className="absolute right-3 top-3">
-              <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.1em] text-navy-900 shadow-soft">
+            <div className="absolute right-4 top-4">
+              <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-navy-900 shadow-soft backdrop-blur-sm">
                 {product.status === 'signature' ? 'Signature' : product.status === 'made_on_order' ? 'Made to Order' : product.status}
               </span>
             </div>
           )}
 
           {/* Actions */}
-          <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 transition-opacity duration-luxury group-hover:opacity-100">
+          <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 transition-all duration-luxury ease-luxury translate-y-2 group-hover:translate-y-0 group-hover:opacity-100">
             {onQuickView && (
               <button
                 onClick={() => onQuickView(product)}
                 aria-label="Quick view"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-soft transition-transform hover:scale-110"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-soft-md backdrop-blur-sm transition-all hover:scale-110 hover:bg-white"
               >
                 <Eye size={16} />
               </button>
@@ -102,7 +105,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             <button
               onClick={handleWishlist}
               aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-soft transition-transform hover:scale-110 ${
+              className={`flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-soft-md backdrop-blur-sm transition-all hover:scale-110 hover:bg-white ${
                 isWishlisted ? 'text-red-500' : 'text-navy-900'
               }`}
             >
@@ -112,21 +115,24 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5">
-          <h3 className="text-base font-serif font-medium text-navy-900">
-            <Link to={`/product/${product.slug}`} className="transition-colors hover:text-gold-700">
+        <div className="px-6 py-5">
+          {product.code && (
+            <p className="label-editorial mb-1.5">{product.code}</p>
+          )}
+          <h3 className="text-lg font-serif font-medium text-navy-900 leading-snug">
+            <Link to={`/product/${product.slug}`} className="link-underline transition-colors hover:text-gold-700">
               {product.title}
             </Link>
           </h3>
           {product.excerpt && (
-            <p className="mt-1.5 line-clamp-2 text-xs font-light leading-relaxed text-charcoal-500">{product.excerpt}</p>
+            <p className="mt-2 line-clamp-2 text-sm font-light leading-relaxed text-charcoal-500">{product.excerpt}</p>
           )}
           <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center gap-1">
               {product.price_type === 'price_on_request' || !product.price ? (
-                <span className="text-sm font-medium text-gold-700">Price on Request</span>
+                <span className="text-sm font-medium tracking-wide text-gold-700">Price on Request</span>
               ) : (
-                <span className="text-sm font-medium text-navy-900">₹{Number(product.price).toLocaleString('en-IN')}</span>
+                <span className="text-sm font-medium tracking-wide text-navy-900">₹{Number(product.price).toLocaleString('en-IN')}</span>
               )}
             </div>
             <a
@@ -134,7 +140,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
               target="_blank"
               rel="noreferrer"
               aria-label="Enquire on WhatsApp"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-50 text-gold-600 transition-colors hover:bg-gold-100"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-50 text-gold-600 transition-all duration-luxury hover:bg-gold-100 hover:shadow-gold"
             >
               <MessageCircle size={16} />
             </a>

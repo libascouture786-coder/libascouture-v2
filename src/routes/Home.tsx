@@ -32,16 +32,19 @@ export function Home() {
         jsonLd={[organizationSchema(), localBusinessSchema(), websiteSchema()]}
       />
 
-      {/* Hero — 100vh cinematic */}
+      {/* Hero — cinematic full-screen */}
       <section className="relative flex h-screen min-h-[600px] items-center justify-center overflow-hidden">
         <img
           src={getImage('hero.main')}
           alt="LIBAS COUTURE — luxury bridal couture, hand-embroidered for your forever moments"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover ken-burns"
           fetchPriority="high"
           decoding="auto"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-950/55 via-navy-950/35 to-navy-950/65" aria-hidden />
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-navy-950/60 via-navy-950/30 to-navy-950/70"
+          aria-hidden
+        />
         <div className="container-luxury relative text-center">
           <Reveal>
             <img
@@ -53,12 +56,13 @@ export function Home() {
             />
           </Reveal>
           <Reveal delay={200}>
-            <h1 className="mx-auto mt-8 max-w-4xl text-hero font-serif font-medium text-ivory-100 text-balance">
+            <h1 className="mx-auto mt-10 max-w-4xl text-hero font-serif font-medium text-ivory-100 text-balance">
               Luxury Bridal Couture
             </h1>
           </Reveal>
           <Reveal delay={350}>
-            <p className="mx-auto mt-3 max-w-2xl text-h3 font-serif font-light text-ivory-200/90 text-balance">
+            <div className="mx-auto mt-6 h-px w-16 bg-gradient-to-r from-transparent via-gold-300 to-transparent" aria-hidden />
+            <p className="mx-auto mt-6 max-w-2xl text-h3 font-serif font-light text-ivory-200/90 text-balance">
               Handcrafted For Your Forever Moments
             </p>
           </Reveal>
@@ -68,17 +72,22 @@ export function Home() {
             </p>
           </Reveal>
           <Reveal delay={650}>
-            <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Button variant="gold" size="lg" onClick={open}>
                 <CalendarHeart size={18} /> Book Appointment
               </Button>
-              <ButtonLink to="/collections/bridal" variant="secondary" size="lg" className="border-ivory-200/40 text-ivory-100 hover:border-gold-300 hover:text-gold-300">
+              <ButtonLink
+                to="/collections/bridal"
+                variant="secondary"
+                size="lg"
+                className="border-ivory-200/40 text-ivory-100 hover:border-gold-300 hover:text-gold-300"
+              >
                 Explore Collection <ArrowRight size={16} className="ml-1" />
               </ButtonLink>
             </div>
           </Reveal>
           <Reveal delay={800}>
-            <ul className="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <ul className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
               {trustPoints.map((tp) => (
                 <li key={tp} className="flex items-center gap-1.5 text-xs font-light text-ivory-200/75">
                   <Check size={14} className="text-gold-300" strokeWidth={2} />

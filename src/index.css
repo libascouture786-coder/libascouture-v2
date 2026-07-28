@@ -20,11 +20,13 @@
   body {
     @apply bg-ivory-100 text-charcoal-800 font-sans antialiased;
     font-feature-settings: 'kern', 'liga', 'calt';
+    letter-spacing: 0.01em;
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif;
     font-feature-settings: 'kern', 'liga', 'dlig';
+    letter-spacing: -0.005em;
   }
 
   ::selection {
@@ -32,8 +34,8 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-ivory-200;
@@ -59,24 +61,49 @@
     @apply mx-auto w-full max-w-luxury px-5 sm:px-8 lg:px-12;
   }
 
+  .container-narrow {
+    @apply mx-auto w-full max-w-luxury-narrow px-5 sm:px-8 lg:px-12;
+  }
+
   .section-spacing {
     @apply py-section-sm md:py-section;
   }
 
+  .section-spacing-lg {
+    @apply py-section-sm md:py-section-lg;
+  }
+
   .heading-eyebrow {
-    @apply text-xs uppercase tracking-[0.3em] text-gold-600 font-sans font-medium;
+    @apply text-[11px] uppercase tracking-[0.35em] text-gold-600 font-sans font-medium;
+  }
+
+  .heading-eyebrow-light {
+    @apply text-[11px] uppercase tracking-[0.35em] text-gold-300 font-sans font-medium;
   }
 
   .text-balance {
     text-wrap: balance;
   }
 
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
   .link-underline {
     @apply relative inline-block after:absolute after:bottom-0 after:left-0 after:h-px after:w-0 after:bg-gold-500 after:transition-all after:duration-luxury after:ease-luxury hover:after:w-full;
   }
 
+  /* Editorial divider — thin gold line used under section headings */
+  .divider-gold {
+    @apply mx-auto mt-6 h-px w-16 bg-gradient-to-r from-transparent via-gold-400 to-transparent;
+  }
+
+  .divider-gold-left {
+    @apply mt-6 h-px w-16 bg-gradient-to-r from-gold-400 to-transparent;
+  }
+
   .btn-base {
-    @apply inline-flex items-center justify-center gap-2.5 rounded-luxury px-7 py-3.5 text-sm font-medium tracking-[0.15em] uppercase transition-all duration-luxury ease-luxury focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-100 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2.5 rounded-luxury px-7 py-3.5 text-[13px] font-medium tracking-[0.15em] uppercase transition-all duration-luxury ease-luxury focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-100 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-primary {
@@ -84,7 +111,7 @@
   }
 
   .btn-gold {
-    @apply btn-base bg-gold-500 text-navy-900 shadow-gold hover:bg-gold-400 hover:shadow-soft-md;
+    @apply btn-base bg-gold-500 text-navy-900 shadow-gold hover:bg-gold-400 hover:shadow-gold-md;
   }
 
   .btn-secondary {
@@ -99,8 +126,17 @@
     @apply btn-base bg-transparent text-charcoal-600 hover:text-navy-900;
   }
 
+  /* Outline button for use on dark/image backgrounds */
+  .btn-outline-light {
+    @apply btn-base border border-ivory-200/40 bg-transparent text-ivory-100 hover:border-gold-300 hover:text-gold-300;
+  }
+
   .card-luxury {
     @apply rounded-luxury-lg bg-white shadow-soft transition-all duration-luxury ease-luxury hover:-translate-y-1 hover:shadow-soft-lg;
+  }
+
+  .card-editorial {
+    @apply relative overflow-hidden rounded-luxury-lg bg-white shadow-soft transition-all duration-luxury ease-luxury hover:shadow-soft-lg;
   }
 
   .input-luxury {
@@ -115,6 +151,11 @@
     @apply absolute inset-0 animate-shimmer;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
     background-size: 200% 100%;
+  }
+
+  /* Editorial label — small uppercase text used above product titles */
+  .label-editorial {
+    @apply text-[10px] uppercase tracking-[0.25em] text-charcoal-400 font-sans;
   }
 }
 
@@ -146,6 +187,11 @@
     transform: scale(1.05);
   }
 
+  /* Slow Ken Burns zoom for hero images */
+  .ken-burns {
+    animation: ken-burns 20s ease-out infinite alternate;
+  }
+
   .text-gradient-gold {
     background: linear-gradient(120deg, #c8933a 0%, #d4a857 40%, #f5ecd5 60%, #c8933a 100%);
     -webkit-background-clip: text;
@@ -158,12 +204,27 @@
     background-size: 24px 24px;
   }
 
+  /* Subtle luxury texture for dark sections */
+  .bg-navy-texture {
+    background-image: radial-gradient(rgba(200, 147, 58, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Editorial image overlay — subtle gradient for text legibility */
+  .overlay-editorial {
+    background: linear-gradient(to top, rgba(14, 23, 41, 0.45) 0%, rgba(14, 23, 41, 0.1) 40%, transparent 70%);
+  }
+
+  .overlay-editorial-strong {
+    background: linear-gradient(to top, rgba(14, 23, 41, 0.7) 0%, rgba(14, 23, 41, 0.3) 50%, transparent 100%);
   }
 
   @media (prefers-reduced-motion: reduce) {

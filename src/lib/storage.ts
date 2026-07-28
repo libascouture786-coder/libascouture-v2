@@ -71,6 +71,23 @@ export interface StorageAdapter {
 
   getRecentlyViewed(): string[];
   addRecentlyViewed(slug: string): void;
+
+  /* --- Future customer personalization (optional, not yet implemented) --- */
+
+  /** Future: persist customer profile data when accounts are enabled. */
+  getCustomerProfile?(): unknown | null;
+
+  /** Future: persist style preferences for AI personalization. */
+  getStylePreferences?(): unknown[];
+
+  /** Future: persist lookbooks when the lookbook feature ships. */
+  getLookbooks?(): unknown[];
+
+  /** Future: persist mood boards when the mood board feature ships. */
+  getMoodBoards?(): unknown[];
+
+  /** Future: persist saved measurements linked to a customer account. */
+  getSavedMeasurements?(): unknown[];
 }
 
 const WISHLIST_KEY = 'libas.wishlist';

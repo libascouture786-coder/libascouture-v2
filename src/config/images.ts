@@ -5,11 +5,11 @@ const COLLECTION_F1   = '/assets/images/collections/file_00000000f2d871f5b71308e
 const COLLECTION_F2   = '/assets/images/collections/file_00000000f7b47243b9ffc545aece98f3.png';
 const EMBROIDERY_F1   = '/assets/images/embroidery/file_000000001c5871f49f2644bd4f567126.png';
 
-/* Official product branding images */
-const RED_LEHENGA_FRONT  = '/assets/images/branding/20260615_121731.jpg.jpeg';
-const RED_LEHENGA_BACK   = '/assets/images/branding/20260615_121841.jpg.jpeg';
-const IVORY_LEHENGA_FRONT = '/assets/images/branding/20260619_122046.jpg.jpeg';
-const IVORY_LEHENGA_BACK  = '/assets/images/branding/20260619_122344.jpg.jpeg';
+/* Product images (local assets) */
+const RED_LEHENGA_FRONT  = '/assets/images/products/IMG_0993.JPG.jpeg';
+const RED_LEHENGA_BACK   = '/assets/images/products/IMG_1020.JPG.jpeg';
+const IVORY_LEHENGA_FRONT = '/assets/images/products/file_00000000115872308d563035b6a96341.png';
+const IVORY_LEHENGA_BACK  = '/assets/images/products/file_000000004e9c71fab1a26edda7f4c29e.png';
 
 export const images = {
   logo: LOGO,

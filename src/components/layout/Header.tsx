@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X, Heart, ChevronDown, Phone, MessageCircle, CalendarHeart } from 'lucide-react';
+import { Menu, ChevronDown, Heart, CalendarHeart } from 'lucide-react';
 import { site, navigation, megaMenuCategories, megaMenuHighlights } from '@/config/site';
 import { getImage } from '@/config/images';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAppointment } from '@/context/AppointmentContext';
+import { MobileNav } from './MobileNav';
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -22,16 +23,8 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    setMobileOpen(false);
     setMegaOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [mobileOpen]);
 
   return (
     <>
@@ -151,59 +144,8 @@ export function Header() {
         </div>
       </header>
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[120] lg:hidden">
-          <div className="absolute inset-0 bg-navy-950/50 backdrop-blur-sm animate-fade-in" onClick={() => setMobileOpen(false)} aria-hidden />
-          <div className="absolute left-0 top-0 h-full w-[85%] max-w-sm overflow-y-auto bg-ivory-100 shadow-soft-lg animate-slide-in-right no-scrollbar">
-            <div className="flex items-center justify-between border-b border-navy-100 px-5 py-4">
-              <img src={getImage('logo')} alt={site.name} className="h-8 w-auto" />
-              <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="flex h-10 w-10 items-center justify-center rounded-luxury text-navy-900 hover:bg-ivory-200">
-                <X size={20} />
-              </button>
-            </div>
-            <nav className="px-5 py-6" aria-label="Mobile">
-              <p className="heading-eyebrow mb-3">Collections</p>
-              <div className="grid grid-cols-2 gap-2">
-                {megaMenuCategories.map((cat) => (
-                  <Link
-                    key={cat.slug}
-                    to={`/collections/${cat.slug}`}
-                    className="flex items-center gap-2.5 rounded-luxury p-2 hover:bg-ivory-200"
-                  >
-                    <img src={getImage(cat.imageKey)} alt={cat.title} className="h-10 w-10 rounded-luxury object-cover" loading="lazy" />
-                    <span className="text-xs font-light text-navy-900">{cat.title}</span>
-                  </Link>
-                ))}
-              </div>
-              <div className="mt-6 space-y-1 border-t border-navy-100 pt-4">
-                {navigation
-                  .filter((n) => !['Bridal Collection', 'Occasion Wear', 'Sarees', 'Suits'].includes(n.label))
-                  .map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      className="block py-2.5 text-sm font-light text-navy-900 hover:text-gold-700"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                <Link to="/appointments" className="block py-2.5 text-sm font-light text-navy-900 hover:text-gold-700">
-                  Book Appointment
-                </Link>
-              </div>
-              <div className="mt-6 flex flex-col gap-3 border-t border-navy-100 pt-4">
-                <a href={site.contact.whatsappLink} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <MessageCircle size={14} /> WhatsApp
-                </a>
-                <a href={`tel:${site.contact.phoneRaw}`} className="btn-tertiary text-xs">
-                  <Phone size={14} /> {site.contact.phoneDisplay}
-                </a>
-              </div>
-            </nav>
-          </div>
-        </div>
-      )}
+      {/* Mobile navigation drawer */}
+      <MobileNav open={mobileOpen} onClose={() => setMobileOpen(false)} />
     </>
   );
 }
