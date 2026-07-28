@@ -233,12 +233,11 @@ export function ProductDetail() {
                   />
                 ))
               ) : (
-                <img
-                  src={images[0]?.url ?? ''}
-                  alt={product.title}
-                  className="gallery-img opacity-100"
-                  fetchPriority="high"
-                />
+                <div className="gallery-img flex items-center justify-center bg-ivory-200 opacity-100">
+                  <span className="text-xs font-light uppercase tracking-[0.2em] text-charcoal-400">
+                    Image Coming Soon
+                  </span>
+                </div>
               )}
             </div>
             {images.length > 1 && (

@@ -6,6 +6,7 @@ import { Section } from '@/components/ui/Section';
 import { Reveal } from '@/components/ui/Reveal';
 import { Breadcrumb, type Crumb } from '@/components/layout/Breadcrumb';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/product/ProductCard';
 import { QuickView } from '@/components/product/QuickView';
 import { FilterBar, FilterSheet, MobileFilterButton, defaultFilters, applyFilters, type FilterState } from '@/components/product/FilterBar';
@@ -21,6 +22,7 @@ export function Collections() {
   const { slug } = useParams<{ slug?: string }>();
   const [products, setProducts] = useState<ProductWithImages[]>([]);
   const [loading, setLoading] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [quickView, setQuickView] = useState<ProductWithImages | null>(null);
@@ -28,6 +30,7 @@ export function Collections() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
+    setNetworkError(false);
     try {
       const { data: productData, error: pErr } = await supabase
         .from('products')
@@ -50,6 +53,7 @@ export function Collections() {
       setProducts(withImages);
     } catch {
       setProducts([]);
+      setNetworkError(true);
     } finally {
       setLoading(false);
     }
@@ -169,6 +173,16 @@ export function Collections() {
               <div key={i} className="skeleton aspect-[3/4] rounded-luxury-lg" />
             ))}
           </div>
+        ) : networkError ? (
+          <EmptyState
+            title="Connection issue"
+            message="We couldn't load the collection. Please check your connection and try again."
+            action={
+              <Button variant="primary" onClick={fetchProducts}>
+                Try Again
+              </Button>
+            }
+          />
         ) : visible.length === 0 ? (
           <EmptyState
             title={filters.search ? 'No matches found' : 'No pieces found'}

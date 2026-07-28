@@ -6,6 +6,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
+import { validatePhone } from '@/lib/validation';
 import {
   consultationTypes, timeSlots,
   budgetRanges, occasionOptions,
@@ -97,7 +98,12 @@ export function AppointmentForm({ onComplete }: AppointmentFormProps) {
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = 'Please share your name.';
-    if (!form.mobile.trim()) errs.mobile = 'Please share your mobile number.';
+    if (!form.mobile.trim()) {
+      errs.mobile = 'Please share your mobile number.';
+    } else {
+      const phoneResult = validatePhone(form.mobile);
+      if (!phoneResult.valid) errs.mobile = phoneResult.error!;
+    }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Please enter a valid email.';
     if (!form.consultationType) errs.consultationType = 'Please select a consultation type.';
     if (!form.preferredDate) errs.preferredDate = 'Please choose a preferred date.';
@@ -115,7 +121,7 @@ export function AppointmentForm({ onComplete }: AppointmentFormProps) {
       const token = crypto.randomUUID();
       const { error } = await supabase.from('appointments').insert({
         name: form.name,
-        email: form.email || 'not provided',
+        email: form.email || null,
         phone: form.mobile,
         whatsapp: form.whatsapp || null,
         consultation_type: form.consultationType || null,

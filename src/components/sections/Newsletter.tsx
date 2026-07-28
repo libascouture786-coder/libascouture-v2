@@ -3,6 +3,7 @@ import { Section } from '@/components/ui/Section';
 import { Reveal } from '@/components/ui/Reveal';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
+import { supabase } from '@/lib/supabase';
 import { Mail, Loader2 } from 'lucide-react';
 
 export function Newsletter() {
@@ -11,7 +12,7 @@ export function Newsletter() {
   const [honeypot, setHoneypot] = useState('');
   const { notify } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (honeypot) return;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -19,11 +20,25 @@ export function Newsletter() {
       return;
     }
     setSubmitting(true);
-    window.setTimeout(() => {
-      setSubmitting(false);
-      notify('Thank you for subscribing. Stay inspired with LIBAS COUTURE.');
+    try {
+      const { error } = await supabase
+        .from('newsletter_subscribers')
+        .insert({ email: email.trim().toLowerCase() });
+      if (error) {
+        if (error.code === '23505') {
+          notify('You are already subscribed. Thank you for being part of LIBAS COUTURE.');
+        } else {
+          throw error;
+        }
+      } else {
+        notify('Thank you for subscribing. Stay inspired with LIBAS COUTURE.');
+      }
       setEmail('');
-    }, 700);
+    } catch {
+      notify('Something went wrong. Please try again or reach us on WhatsApp.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

@@ -5,12 +5,14 @@ import { ButtonLink } from '@/components/ui/Button';
 type EmptyStateProps = {
   title?: string;
   message?: string;
+  action?: ReactNode;
   children?: ReactNode;
 };
 
 export function EmptyState({
   title = 'Nothing here yet',
   message = "We're curating this collection. Please check back shortly.",
+  action,
   children,
 }: EmptyStateProps) {
   return (
@@ -21,12 +23,16 @@ export function EmptyState({
       <h2 className="mt-6 font-serif text-2xl font-medium text-navy-900">{title}</h2>
       <p className="mt-3 max-w-md text-sm font-light leading-relaxed text-charcoal-500">{message}</p>
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-        <ButtonLink to="/collections/bridal" variant="primary">
-          Explore Bridal Collection
-        </ButtonLink>
-        <ButtonLink to="/" variant="tertiary">
-          Return Home
-        </ButtonLink>
+        {action ?? (
+          <>
+            <ButtonLink to="/collections/bridal" variant="primary">
+              Explore Bridal Collection
+            </ButtonLink>
+            <ButtonLink to="/" variant="tertiary">
+              Return Home
+            </ButtonLink>
+          </>
+        )}
       </div>
       {children}
     </div>

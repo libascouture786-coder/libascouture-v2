@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MapPin, Phone, Mail, MessageCircle, Clock, Navigation } from 'lucide-react';
 import { Seo } from '@/components/ui/Seo';
 import { Section } from '@/components/ui/Section';
@@ -7,10 +8,74 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { site } from '@/config/site';
 import { getImage } from '@/config/images';
 import { useAppointment } from '@/context/AppointmentContext';
+import { useToast } from '@/context/ToastContext';
+import { supabase } from '@/lib/supabase';
+import { validateRequired, validatePhone, validateEmail } from '@/lib/validation';
 import { localBusinessSchema, breadcrumbSchema, SITE_URL } from '@/lib/seo';
+
+type ContactForm = {
+  name: string;
+  mobile: string;
+  email: string;
+  message: string;
+};
+
+type FormErrors = Partial<Record<keyof ContactForm, string>>;
+
+const initialForm: ContactForm = { name: '', mobile: '', email: '', message: '' };
 
 export function Contact() {
   const { open } = useAppointment();
+  const { notify } = useToast();
+  const [form, setForm] = useState<ContactForm>(initialForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+
+  const validate = (): boolean => {
+    const errs: FormErrors = {};
+    const nameResult = validateRequired(form.name, 'Name');
+    if (!nameResult.valid) errs.name = nameResult.error;
+    const phoneResult = validatePhone(form.mobile);
+    if (!phoneResult.valid) errs.mobile = phoneResult.error;
+    if (form.email) {
+      const emailResult = validateEmail(form.email);
+      if (!emailResult.valid) errs.email = emailResult.error;
+    }
+    const messageResult = validateRequired(form.message, 'Message');
+    if (!messageResult.valid) errs.message = messageResult.error;
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (honeypot) return;
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('admin_enquiries').insert({
+        name: form.name.trim(),
+        mobile: form.mobile.trim(),
+        email: form.email.trim() || null,
+        message: form.message.trim(),
+        enquiry_type: 'general',
+        status: 'new',
+      });
+      if (error) throw error;
+      notify('Thank you for reaching out. Our atelier will be in touch shortly.');
+      setForm(initialForm);
+    } catch {
+      notify('Something went wrong. Please try again or call us directly.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateField = (field: keyof ContactForm, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
 
   return (
     <>
@@ -134,6 +199,103 @@ export function Contact() {
                 allowFullScreen
               />
             </div>
+          </Reveal>
+        </div>
+      </Section>
+
+      {/* Enquiry form */}
+      <Section background="ivory" className="pt-0">
+        <div className="mx-auto max-w-2xl">
+          <Reveal>
+            <div className="text-center">
+              <p className="label-editorial mb-3">Send Us a Message</p>
+              <h2 className="font-serif text-3xl font-medium text-navy-900 sm:text-4xl">
+                We'd Love to Hear From You
+              </h2>
+              <p className="mx-auto mt-4 max-w-lg text-sm font-light leading-relaxed text-charcoal-500">
+                Have a question about a piece, a custom request, or your visit? Share a few details and our atelier will respond personally.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-10 space-y-5" noValidate>
+              <input
+                type="text"
+                name="company"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                className="hidden"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden
+              />
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="contact-name" className="label-luxury">
+                    Full Name <span className="text-gold-600">*</span>
+                  </label>
+                  <input
+                    id="contact-name"
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => updateField('name', e.target.value)}
+                    className={`input-luxury ${errors.name ? 'input-error' : ''}`}
+                    placeholder="Your name"
+                    aria-invalid={errors.name ? 'true' : undefined}
+                  />
+                  {errors.name && <p className="error-text">{errors.name}</p>}
+                </div>
+                <div>
+                  <label htmlFor="contact-mobile" className="label-luxury">
+                    Mobile <span className="text-gold-600">*</span>
+                  </label>
+                  <input
+                    id="contact-mobile"
+                    type="tel"
+                    value={form.mobile}
+                    onChange={(e) => updateField('mobile', e.target.value)}
+                    className={`input-luxury ${errors.mobile ? 'input-error' : ''}`}
+                    placeholder="10-digit mobile number"
+                    aria-invalid={errors.mobile ? 'true' : undefined}
+                  />
+                  {errors.mobile && <p className="error-text">{errors.mobile}</p>}
+                </div>
+              </div>
+              <div>
+                <label htmlFor="contact-email" className="label-luxury">
+                  Email <span className="text-charcoal-300">(optional)</span>
+                </label>
+                <input
+                  id="contact-email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => updateField('email', e.target.value)}
+                  className={`input-luxury ${errors.email ? 'input-error' : ''}`}
+                  placeholder="you@example.com"
+                  aria-invalid={errors.email ? 'true' : undefined}
+                />
+                {errors.email && <p className="error-text">{errors.email}</p>}
+              </div>
+              <div>
+                <label htmlFor="contact-message" className="label-luxury">
+                  Message <span className="text-gold-600">*</span>
+                </label>
+                <textarea
+                  id="contact-message"
+                  value={form.message}
+                  onChange={(e) => updateField('message', e.target.value)}
+                  className={`textarea-luxury ${errors.message ? 'input-error' : ''}`}
+                  placeholder="How can we help you?"
+                  rows={5}
+                  aria-invalid={errors.message ? 'true' : undefined}
+                />
+                {errors.message && <p className="error-text">{errors.message}</p>}
+              </div>
+              <div className="flex justify-center pt-2">
+                <Button type="submit" variant="primary" size="lg" loading={submitting} disabled={submitting}>
+                  {submitting ? 'Sending...' : 'Send Message'}
+                </Button>
+              </div>
+            </form>
           </Reveal>
         </div>
       </Section>
