@@ -3,18 +3,30 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 import { getImage } from '@/config/images';
+import { validateEmail } from '@/lib/validation';
 
 export function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
   const { signIn } = useAdminAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (honeypot) return;
     setError(null);
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.error!);
+      return;
+    }
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
     setLoading(true);
     const { error: signInError } = await signIn(email, password);
     setLoading(false);
@@ -51,6 +63,10 @@ export function AdminLogin() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div className="hidden" aria-hidden>
+              <label htmlFor="admin-website">Website</label>
+              <input id="admin-website" type="text" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" />
+            </div>
             <div>
               <label htmlFor="admin-email" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-ivory-200/60">Email</label>
               <div className="relative">
@@ -62,6 +78,7 @@ export function AdminLogin() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  aria-invalid={error ? 'true' : undefined}
                   className="w-full rounded-luxury border border-ivory-200/15 bg-navy-800/50 py-3 pl-11 pr-4 text-sm text-ivory-100 placeholder:text-ivory-200/30 focus:border-gold-400 focus:ring-2 focus:ring-gold-400/20 focus:outline-none"
                   placeholder="admin@libascouture.in"
                 />
@@ -85,7 +102,7 @@ export function AdminLogin() {
             </div>
 
             {error && (
-              <p className="rounded-luxury bg-red-500/10 px-4 py-2.5 text-xs font-light text-red-300">{error}</p>
+              <p role="alert" className="rounded-luxury bg-red-500/10 px-4 py-2.5 text-xs font-light text-red-300">{error}</p>
             )}
 
             <button

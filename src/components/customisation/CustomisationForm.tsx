@@ -12,6 +12,9 @@ import {
   outfitCategories, occasionOptions, budgetRanges, designStyles,
   fabricOptions, colorSwatches, embroideryOptions, customisationOptions,
 } from '@/config/customisation';
+import { validateEmail, validatePhone, validateRequired, validateFiles, sanitizeText } from '@/lib/validation';
+
+const P = 'cf';
 
 type FormState = {
   name: string;
@@ -60,6 +63,7 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; preview: string }[]>([]);
+  const [honeypot, setHoneypot] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useToast();
 
@@ -81,9 +85,11 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
   const validateStep = (): boolean => {
     const errs: Record<string, string> = {};
     if (step === 0) {
-      if (!form.name.trim()) errs.name = 'Please share your name.';
-      if (!form.mobile.trim()) errs.mobile = 'Please share your mobile number.';
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Please enter a valid email.';
+      const nameRes = validateRequired(form.name, 'Name');
+      if (!nameRes.valid) errs.name = nameRes.error!;
+      const phoneRes = validatePhone(form.mobile);
+      if (!phoneRes.valid) errs.mobile = phoneRes.error!;
+      if (form.email) { const e = validateEmail(form.email); if (!e.valid) errs.email = e.error!; }
     }
     if (step === 1) {
       if (!form.outfitCategory) errs.outfitCategory = 'Please select an outfit category.';
@@ -119,7 +125,18 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
-    const newFiles = Array.from(files).slice(0, 6 - uploadedFiles.length).map((file) => ({
+    const incoming = Array.from(files);
+    const remaining = 6 - uploadedFiles.length;
+    if (remaining <= 0) {
+      notify('You can upload a maximum of 6 reference images.', 'error');
+      return;
+    }
+    const result = validateFiles(incoming.slice(0, remaining));
+    if (!result.valid) {
+      notify(result.error ?? 'Invalid file.', 'error');
+      return;
+    }
+    const newFiles = incoming.slice(0, remaining).map((file) => ({
       name: file.name,
       preview: URL.createObjectURL(file),
     }));
@@ -131,12 +148,13 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
   };
 
   const handleSubmit = async () => {
+    if (honeypot) return;
     setSubmitting(true);
     try {
       const { error } = await supabase.from('customisation_requests').insert({
-        name: form.name,
-        mobile: form.mobile,
-        whatsapp: form.whatsapp || null,
+        name: sanitizeText(form.name, 100),
+        mobile: sanitizeText(form.mobile, 20),
+        whatsapp: form.whatsapp ? sanitizeText(form.whatsapp, 20) : null,
         email: form.email || null,
         city: form.city || null,
         state: form.state || null,
@@ -150,8 +168,8 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
         colors: form.colors.length > 0 ? form.colors : null,
         embroidery: form.embroidery.length > 0 ? form.embroidery : null,
         customisation: form.customisation.length > 0 ? form.customisation : null,
-        inspiration_notes: form.inspirationNotes || null,
-        additional_notes: form.additionalNotes || null,
+        inspiration_notes: form.inspirationNotes ? sanitizeText(form.inspirationNotes, 2000) : null,
+        additional_notes: form.additionalNotes ? sanitizeText(form.additionalNotes, 2000) : null,
       });
       if (error) throw error;
       onComplete(form);
@@ -229,6 +247,10 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
 
       {/* Step content */}
       <div className="rounded-luxury-lg border border-navy-50 bg-white p-6 shadow-soft sm:p-8">
+        <div className="hidden" aria-hidden>
+          <label htmlFor="cf-website">Website</label>
+          <input id="cf-website" type="text" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" />
+        </div>
         {/* Step 0: Personal */}
         {step === 0 && (
           <div className="space-y-5">
@@ -240,13 +262,13 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="cf-name" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-charcoal-600">Name *</label>
-                <input id="cf-name" type="text" value={form.name} onChange={(e) => update('name', e.target.value)} className={`input-luxury ${errors.name ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="Your full name" />
-                {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
+                <input id="cf-name" type="text" value={form.name} onChange={(e) => update('name', e.target.value)} aria-invalid={errors.name ? 'true' : undefined} aria-describedby={errors.name ? `${P}-name-error` : undefined} className={`input-luxury ${errors.name ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="Your full name" />
+                {errors.name && <p id={`${P}-name-error`} className="mt-1 text-xs text-red-500" role="alert">{errors.name}</p>}
               </div>
               <div>
                 <label htmlFor="cf-mobile" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-charcoal-600">Mobile *</label>
-                <input id="cf-mobile" type="tel" value={form.mobile} onChange={(e) => update('mobile', e.target.value)} className={`input-luxury ${errors.mobile ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="+91 ..." />
-                {errors.mobile && <p className="mt-1 text-xs text-red-500">{errors.mobile}</p>}
+                <input id="cf-mobile" type="tel" value={form.mobile} onChange={(e) => update('mobile', e.target.value)} aria-invalid={errors.mobile ? 'true' : undefined} aria-describedby={errors.mobile ? `${P}-mobile-error` : undefined} className={`input-luxury ${errors.mobile ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="+91 ..." />
+                {errors.mobile && <p id={`${P}-mobile-error`} className="mt-1 text-xs text-red-500" role="alert">{errors.mobile}</p>}
               </div>
               <div>
                 <label htmlFor="cf-whatsapp" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-charcoal-600">WhatsApp <span className="text-charcoal-300 normal-case tracking-normal">(if different)</span></label>
@@ -254,8 +276,8 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
               </div>
               <div>
                 <label htmlFor="cf-email" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-charcoal-600">Email <span className="text-charcoal-300 normal-case tracking-normal">(optional)</span></label>
-                <input id="cf-email" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className={`input-luxury ${errors.email ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="you@email.com" />
-                {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
+                <input id="cf-email" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} aria-invalid={errors.email ? 'true' : undefined} aria-describedby={errors.email ? `${P}-email-error` : undefined} className={`input-luxury ${errors.email ? 'border-red-400 ring-2 ring-red-100' : ''}`} placeholder="you@email.com" />
+                {errors.email && <p id={`${P}-email-error`} className="mt-1 text-xs text-red-500" role="alert">{errors.email}</p>}
               </div>
               <div>
                 <label htmlFor="cf-city" className="mb-1.5 block text-xs uppercase tracking-[0.1em] text-charcoal-600">City</label>

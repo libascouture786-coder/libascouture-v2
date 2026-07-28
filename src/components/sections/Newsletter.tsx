@@ -8,10 +8,12 @@ import { Mail, Loader2 } from 'lucide-react';
 export function Newsletter() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
   const { notify } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (honeypot) return;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       notify('Please enter a valid email address.', 'error');
       return;
@@ -37,12 +39,17 @@ export function Newsletter() {
             Receive updates about new collections and bridal inspirations.
           </p>
           <form onSubmit={handleSubmit} className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row" noValidate>
+            <div className="hidden" aria-hidden>
+              <label htmlFor="nl-website">Website</label>
+              <input id="nl-website" type="text" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" />
+            </div>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Your email address"
               aria-label="Email address"
+              required
               className="input-luxury border-ivory-200/20 bg-navy-800/50 text-ivory-100 placeholder:text-ivory-200/40 focus:border-gold-400"
             />
             <Button type="submit" variant="gold" size="md" disabled={submitting} className="shrink-0">

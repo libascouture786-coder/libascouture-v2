@@ -171,8 +171,8 @@ export function Collections() {
           </div>
         ) : visible.length === 0 ? (
           <EmptyState
-            title="No pieces found"
-            message="Try adjusting your filters to discover more of our collection."
+            title={filters.search ? 'No matches found' : 'No pieces found'}
+            message={filters.search ? `We couldn't find any pieces matching "${filters.search}". Try adjusting your search or filters.` : 'Try adjusting your filters to discover more of our collection.'}
           />
         ) : (
           <>

@@ -25,6 +25,7 @@ export function ProductDetail() {
   const [related, setRelated] = useState<ProductWithImages[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<ProductWithImages[]>([]);
   const [loading, setLoading] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -83,6 +84,7 @@ export function ProductDetail() {
         setRecentlyViewed(rvWithImages);
       }
     } catch {
+      setNetworkError(true);
       setProduct(null);
     } finally {
       setLoading(false);
@@ -96,8 +98,33 @@ export function ProductDetail() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="skeleton h-8 w-8 rounded-full" />
+      <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
+        <div>
+          <div className="skeleton aspect-[4/5] rounded-luxury-lg" />
+          <div className="mt-4 flex gap-3">
+            <div className="skeleton aspect-[3/4] w-20 rounded-luxury" />
+            <div className="skeleton aspect-[3/4] w-20 rounded-luxury" />
+            <div className="skeleton aspect-[3/4] w-20 rounded-luxury" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="skeleton h-6 w-24 rounded-full" />
+          <div className="skeleton h-10 w-3/4 rounded-luxury" />
+          <div className="skeleton h-4 w-full rounded-luxury" />
+          <div className="skeleton h-4 w-2/3 rounded-luxury" />
+          <div className="skeleton h-12 w-full rounded-luxury" />
+          <div className="skeleton h-12 w-full rounded-luxury" />
+        </div>
+      </div>
+    );
+  }
+
+  if (networkError) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+        <h1 className="text-h2 font-serif font-medium text-navy-900">Connection Issue</h1>
+        <p className="mt-3 text-sm font-light text-charcoal-500">We couldn't load this piece. Please check your connection and try again.</p>
+        <ButtonLink to="/collections" variant="primary" size="md" className="mt-6">Explore Collections</ButtonLink>
       </div>
     );
   }
@@ -472,7 +499,7 @@ export function ProductDetail() {
       </Section>
 
       {/* Sticky mobile bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 border-t border-navy-50 bg-ivory-100/95 px-4 py-3 backdrop-blur-md lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-[85] flex items-center gap-2 border-t border-navy-50 bg-ivory-100/95 px-4 py-3 pb-safe backdrop-blur-md lg:hidden">
         <ButtonAnchor
           href={`https://wa.me/${site.contact.whatsappNumber}?text=${whatsappMsg}`}
           target="_blank"
