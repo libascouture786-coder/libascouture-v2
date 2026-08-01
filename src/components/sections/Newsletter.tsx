@@ -3,7 +3,7 @@ import { Section } from '@/components/ui/Section';
 import { Reveal } from '@/components/ui/Reveal';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { subscribeNewsletter } from '@/lib/api';
 import { Mail, Loader2 } from 'lucide-react';
 
 export function Newsletter() {
@@ -20,24 +20,17 @@ export function Newsletter() {
       return;
     }
     setSubmitting(true);
-    try {
-      const { error } = await supabase
-        .from('newsletter_subscribers')
-        .insert({ email: email.trim().toLowerCase() });
-      if (error) {
-        if (error.code === '23505') {
-          notify('You are already subscribed. Thank you for being part of LIBAS COUTURE.');
-        } else {
-          throw error;
-        }
+    const res = await subscribeNewsletter(email);
+    setSubmitting(false);
+    if (res.error) {
+      if (res.error.code === 'duplicate') {
+        notify('You are already subscribed. Thank you for being part of LIBAS COUTURE.');
       } else {
-        notify('Thank you for subscribing. Stay inspired with LIBAS COUTURE.');
+        notify('Something went wrong. Please try again or reach us on WhatsApp.', 'error');
       }
+    } else {
+      notify('Thank you for subscribing. Stay inspired with LIBAS COUTURE.');
       setEmail('');
-    } catch {
-      notify('Something went wrong. Please try again or reach us on WhatsApp.', 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 

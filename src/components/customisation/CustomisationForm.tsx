@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button, ButtonAnchor } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { submitCustomisationRequest } from '@/lib/api';
 import { site } from '@/config/site';
 import {
   outfitCategories, occasionOptions, budgetRanges, designStyles,
@@ -150,33 +150,31 @@ export function CustomisationForm({ onComplete }: CustomisationFormProps) {
   const handleSubmit = async () => {
     if (honeypot) return;
     setSubmitting(true);
-    try {
-      const { error } = await supabase.from('customisation_requests').insert({
-        name: sanitizeText(form.name, 100),
-        mobile: sanitizeText(form.mobile, 20),
-        whatsapp: form.whatsapp ? sanitizeText(form.whatsapp, 20) : null,
-        email: form.email || null,
-        city: form.city || null,
-        state: form.state || null,
-        country: form.country || null,
-        outfit_category: form.outfitCategory || null,
-        occasion: form.occasion || null,
-        event_date: form.eventDate || null,
-        budget: form.budget || null,
-        design_style: form.designStyle || null,
-        fabrics: form.fabrics.length > 0 ? form.fabrics : null,
-        colors: form.colors.length > 0 ? form.colors : null,
-        embroidery: form.embroidery.length > 0 ? form.embroidery : null,
-        customisation: form.customisation.length > 0 ? form.customisation : null,
-        inspiration_notes: form.inspirationNotes ? sanitizeText(form.inspirationNotes, 2000) : null,
-        additional_notes: form.additionalNotes ? sanitizeText(form.additionalNotes, 2000) : null,
-      });
-      if (error) throw error;
-      onComplete(form);
-    } catch {
+    const res = await submitCustomisationRequest({
+      name: sanitizeText(form.name, 100),
+      mobile: sanitizeText(form.mobile, 20),
+      whatsapp: form.whatsapp ? sanitizeText(form.whatsapp, 20) : null,
+      email: form.email || null,
+      city: form.city || null,
+      state: form.state || null,
+      country: form.country || null,
+      outfit_category: form.outfitCategory || null,
+      occasion: form.occasion || null,
+      event_date: form.eventDate || null,
+      budget: form.budget || null,
+      design_style: form.designStyle || null,
+      fabrics: form.fabrics.length > 0 ? form.fabrics : null,
+      colors: form.colors.length > 0 ? form.colors : null,
+      embroidery: form.embroidery.length > 0 ? form.embroidery : null,
+      customisation: form.customisation.length > 0 ? form.customisation : null,
+      inspiration_notes: form.inspirationNotes ? sanitizeText(form.inspirationNotes, 2000) : null,
+      additional_notes: form.additionalNotes ? sanitizeText(form.additionalNotes, 2000) : null,
+    });
+    setSubmitting(false);
+    if (res.error) {
       notify('Something went wrong. Please try again or reach us on WhatsApp.', 'error');
-    } finally {
-      setSubmitting(false);
+    } else {
+      onComplete(form);
     }
   };
 

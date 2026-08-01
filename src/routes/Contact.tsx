@@ -9,7 +9,7 @@ import { site } from '@/config/site';
 import { getImage } from '@/config/images';
 import { useAppointment } from '@/context/AppointmentContext';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { submitEnquiry } from '@/lib/api';
 import { validateRequired, validatePhone, validateEmail } from '@/lib/validation';
 import { localBusinessSchema, breadcrumbSchema, SITE_URL } from '@/lib/seo';
 
@@ -53,22 +53,18 @@ export function Contact() {
     if (honeypot) return;
     if (!validate()) return;
     setSubmitting(true);
-    try {
-      const { error } = await supabase.from('admin_enquiries').insert({
-        name: form.name.trim(),
-        mobile: form.mobile.trim(),
-        email: form.email.trim() || null,
-        message: form.message.trim(),
-        enquiry_type: 'general',
-        status: 'new',
-      });
-      if (error) throw error;
+    const res = await submitEnquiry({
+      name: form.name.trim(),
+      mobile: form.mobile.trim(),
+      email: form.email.trim() || null,
+      message: form.message.trim(),
+    });
+    setSubmitting(false);
+    if (res.error) {
+      notify('Something went wrong. Please try again or call us directly.', 'error');
+    } else {
       notify('Thank you for reaching out. Our atelier will be in touch shortly.');
       setForm(initialForm);
-    } catch {
-      notify('Something went wrong. Please try again or call us directly.', 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 

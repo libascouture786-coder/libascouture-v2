@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/context/ToastContext';
-import { supabase } from '@/lib/supabase';
+import { submitAppointment } from '@/lib/api';
 import { validatePhone } from '@/lib/validation';
 import {
   consultationTypes, timeSlots,
@@ -117,28 +117,23 @@ export function AppointmentForm({ onComplete }: AppointmentFormProps) {
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
-    try {
-      const token = crypto.randomUUID();
-      const { error } = await supabase.from('appointments').insert({
-        name: form.name,
-        email: form.email || null,
-        phone: form.mobile,
-        whatsapp: form.whatsapp || null,
-        consultation_type: form.consultationType || null,
-        preferred_date: form.preferredDate,
-        preferred_time: form.preferredTime || null,
-        occasion: form.occasion || null,
-        budget: form.budget || null,
-        notes: form.notes || null,
-        reschedule_token: token,
-        cancellation_token: token,
-      });
-      if (error) throw error;
-      onComplete(form);
-    } catch {
+    const res = await submitAppointment({
+      name: form.name,
+      email: form.email || null,
+      phone: form.mobile,
+      whatsapp: form.whatsapp || null,
+      consultation_type: form.consultationType || null,
+      preferred_date: form.preferredDate,
+      preferred_time: form.preferredTime || null,
+      occasion: form.occasion || null,
+      budget: form.budget || null,
+      notes: form.notes || null,
+    });
+    setSubmitting(false);
+    if (res.error) {
       notify('Something went wrong. Please try again or reach us on WhatsApp.', 'error');
-    } finally {
-      setSubmitting(false);
+    } else {
+      onComplete(form);
     }
   };
 

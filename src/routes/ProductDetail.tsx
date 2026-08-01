@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Heart, MessageCircle, CalendarHeart, Phone, Navigation,
@@ -13,19 +13,15 @@ import { Lightbox, type LightboxImage } from '@/components/ui/Lightbox';
 import { ProductCard } from '@/components/product/ProductCard';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAppointment } from '@/context/AppointmentContext';
-import { supabase } from '@/lib/supabase';
+import { useProductDetail } from '@/hooks/useProducts';
 import { site, slugLabels } from '@/config/site';
 import { storage } from '@/lib/storage';
 import { productSchema, breadcrumbSchema, faqSchema, SITE_URL } from '@/lib/seo';
-import type { ProductWithImages } from '@/lib/types';
 
 export function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const [product, setProduct] = useState<ProductWithImages | null>(null);
-  const [related, setRelated] = useState<ProductWithImages[]>([]);
-  const [recentlyViewed, setRecentlyViewed] = useState<ProductWithImages[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [networkError, setNetworkError] = useState(false);
+  const recentlyViewedSlugs = storage.getRecentlyViewed().filter((s) => s !== slug);
+  const { product, related, recentlyViewed, loading, error: networkError, refetch } = useProductDetail(slug, recentlyViewedSlugs);
   const [activeImg, setActiveImg] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -33,69 +29,10 @@ export function ProductDetail() {
   const { isSaved, toggle } = useWishlist();
   const { open } = useAppointment();
 
-  const fetchProduct = useCallback(async () => {
-    if (!slug) return;
-    setLoading(true);
-    try {
-      const { data: prod, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-      if (error) throw error;
-      if (!prod) { setProduct(null); return; }
-
-      const { data: imgs } = await supabase
-        .from('product_images')
-        .select('*')
-        .eq('product_id', prod.id)
-        .order('sort_order', { ascending: true });
-
-      const withImages: ProductWithImages = { ...prod, images: imgs ?? [] };
-      setProduct(withImages);
-      storage.addRecentlyViewed(slug);
-
-      const { data: relData } = await supabase
-        .from('products')
-        .select('*')
-        .neq('id', prod.id)
-        .eq('is_active', true)
-        .limit(4);
-      const { data: relImgs } = await supabase
-        .from('product_images')
-        .select('*')
-        .order('sort_order', { ascending: true });
-      const relWithImages: ProductWithImages[] = (relData ?? []).map((p) => ({
-        ...p,
-        images: (relImgs ?? []).filter((img) => img.product_id === p.id),
-      }));
-      setRelated(relWithImages);
-
-      const viewed = storage.getRecentlyViewed().filter((s) => s !== slug);
-      if (viewed.length > 0) {
-        const { data: rvData } = await supabase
-          .from('products')
-          .select('*')
-          .in('slug', viewed)
-          .limit(4);
-        const rvWithImages: ProductWithImages[] = (rvData ?? []).map((p) => ({
-          ...p,
-          images: (relImgs ?? []).filter((img) => img.product_id === p.id),
-        }));
-        setRecentlyViewed(rvWithImages);
-      }
-    } catch {
-      setNetworkError(true);
-      setProduct(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [slug]);
-
   useEffect(() => {
-    fetchProduct();
+    if (slug) storage.addRecentlyViewed(slug);
     setActiveImg(0);
-  }, [fetchProduct]);
+  }, [slug]);
 
   if (loading) {
     return (
@@ -125,7 +62,10 @@ export function ProductDetail() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
         <h1 className="text-h2 font-serif font-medium text-navy-900">Connection Issue</h1>
         <p className="mt-3 text-sm font-light text-charcoal-500">We couldn't load this piece. Please check your connection and try again.</p>
-        <ButtonLink to="/collections" variant="primary" size="md" className="mt-6">Explore Collections</ButtonLink>
+        <div className="mt-6 flex gap-3">
+          <Button variant="primary" size="md" onClick={refetch}>Try Again</Button>
+          <ButtonLink to="/collections" variant="secondary" size="md">Explore Collections</ButtonLink>
+        </div>
       </div>
     );
   }

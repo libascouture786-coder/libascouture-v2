@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Seo } from '@/components/ui/Seo';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/product/ProductCard';
 import { QuickView } from '@/components/product/QuickView';
 import { FilterBar, FilterSheet, MobileFilterButton, defaultFilters, applyFilters, type FilterState } from '@/components/product/FilterBar';
-import { supabase } from '@/lib/supabase';
+import { useActiveProducts } from '@/hooks/useProducts';
 import { getImage } from '@/config/images';
 import { collections, slugLabels } from '@/config/site';
 import { breadcrumbSchema, SITE_URL } from '@/lib/seo';
@@ -20,48 +20,11 @@ const PAGE_SIZE = 8;
 
 export function Collections() {
   const { slug } = useParams<{ slug?: string }>();
-  const [products, setProducts] = useState<ProductWithImages[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [networkError, setNetworkError] = useState(false);
+  const { data: products, loading, error: networkError, refetch } = useActiveProducts();
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [quickView, setQuickView] = useState<ProductWithImages | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setNetworkError(false);
-    try {
-      const { data: productData, error: pErr } = await supabase
-        .from('products')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-      if (pErr) throw pErr;
-
-      const { data: imageData, error: iErr } = await supabase
-        .from('product_images')
-        .select('*')
-        .order('sort_order', { ascending: true });
-      if (iErr) throw iErr;
-
-      const withImages: ProductWithImages[] = (productData ?? []).map((p) => ({
-        ...p,
-        images: (imageData ?? []).filter((img) => img.product_id === p.id),
-      }));
-
-      setProducts(withImages);
-    } catch {
-      setProducts([]);
-      setNetworkError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -178,7 +141,7 @@ export function Collections() {
             title="Connection issue"
             message="We couldn't load the collection. Please check your connection and try again."
             action={
-              <Button variant="primary" onClick={fetchProducts}>
+              <Button variant="primary" onClick={refetch}>
                 Try Again
               </Button>
             }
