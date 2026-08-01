@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, Loader2, Save, Eye, Plus, Image as ImageIcon,
+  ArrowLeft, Upload, Loader2, Save, Eye, Plus,
   Check, AlertCircle, Layers, Settings2,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import { supabase } from '@/lib/supabase';
 import { logActivity, insertCollection, setCollectionProducts } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -58,15 +59,12 @@ export function AdminQuickCollection() {
   const [products, setProducts] = useState<QuickProduct[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [bannerUploading, setBannerUploading] = useState(false);
-  const [bannerDragActive, setBannerDragActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
   const [defaultsExpanded, setDefaultsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
   const dragIdRef = useRef<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -122,28 +120,6 @@ export function AdminQuickCollection() {
       notify('Failed to upload images. Please try again.', 'error');
     } finally {
       setUploading(false);
-    }
-  }, [notify]);
-
-  /* ── Banner upload ─────────────────────────────────────────────── */
-  const handleBannerUpload = useCallback(async (files: FileList) => {
-    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
-    if (!file) return;
-    setBannerUploading(true);
-    try {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from('product-images')
-        .upload(path, file, { cacheControl: '3600', upsert: false });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
-      setCollection((prev) => ({ ...prev, banner_image: pub.publicUrl }));
-      notify('Banner image uploaded.', 'success');
-    } catch {
-      notify('Failed to upload banner image.', 'error');
-    } finally {
-      setBannerUploading(false);
     }
   }, [notify]);
 
@@ -471,32 +447,12 @@ export function AdminQuickCollection() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Banner Image (optional)</label>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => bannerInputRef.current?.click()}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bannerInputRef.current?.click(); } }}
-              onDragOver={(e) => { e.preventDefault(); setBannerDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); setBannerDragActive(false); }}
-              onDrop={(e) => { e.preventDefault(); setBannerDragActive(false); handleBannerUpload(e.dataTransfer.files); }}
-              className={`cursor-pointer rounded-luxury border-2 border-dashed p-4 text-center transition-colors ${bannerDragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100 hover:border-gold-300 hover:bg-ivory-50'}`}
-            >
-              <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files) handleBannerUpload(e.target.files); e.target.value = ''; }} />
-              {collection.banner_image ? (
-                <div className="relative">
-                  <img src={collection.banner_image} alt="Banner" className="mx-auto h-24 w-full rounded-luxury object-cover" />
-                  <p className="mt-1.5 text-xs font-light text-charcoal-500">Click to replace</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-gold-50 text-gold-500">
-                    <ImageIcon size={18} strokeWidth={1.5} className={bannerUploading ? 'animate-pulse' : ''} />
-                  </div>
-                  <p className="mt-2 text-xs font-medium text-navy-900">{bannerUploading ? 'Uploading...' : 'Upload banner (optional)'}</p>
-                </>
-              )}
-            </div>
+            <MediaPicker
+              value={collection.banner_image}
+              onChange={(url) => setCollection((prev) => ({ ...prev, banner_image: url }))}
+              label="Banner Image (optional)"
+              folder="homepage_banners"
+            />
           </div>
 
           <div className="sm:col-span-2">
@@ -703,6 +659,7 @@ export function AdminQuickCollection() {
                   onRemove={removeProduct}
                   onDuplicate={duplicateProduct}
                   onReplaceImage={handleReplaceImage}
+                  onReplaceImageUrl={(id, url) => updateProduct(id, { imageUrl: url })}
                   onToggleExpand={toggleExpand}
                   onToggleArray={toggleArray}
                   onDragStart={handleDragStart}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Search, Loader2, Globe } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchSeoSettings, updateSeoSetting } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import type { SeoSetting } from '@/lib/admin-types';
@@ -115,13 +116,20 @@ export function AdminSeo() {
                 <div className="space-y-3">
                   <input type="text" value={form.og_title ?? ''} onChange={(e) => setForm({ ...form, og_title: e.target.value })} placeholder="OG Title" className="input-luxury w-full" />
                   <textarea value={form.og_description ?? ''} onChange={(e) => setForm({ ...form, og_description: e.target.value })} placeholder="OG Description" rows={2} className="input-luxury w-full resize-none" />
-                  <input type="url" value={form.og_image ?? ''} onChange={(e) => setForm({ ...form, og_image: e.target.value })} placeholder="OG Image URL" className="input-luxury w-full" />
+                  <MediaPicker
+                    value={form.og_image ?? ''}
+                    onChange={(url) => setForm({ ...form, og_image: url })}
+                    label="OG Image"
+                    folder="brand_assets"
+                  />
                 </div>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-charcoal-400">Twitter Card Image</label>
-                <input type="url" value={form.twitter_card_image ?? ''} onChange={(e) => setForm({ ...form, twitter_card_image: e.target.value })} className="input-luxury w-full" />
-              </div>
+              <MediaPicker
+                value={form.twitter_card_image ?? ''}
+                onChange={(url) => setForm({ ...form, twitter_card_image: url })}
+                label="Twitter Card Image"
+                folder="brand_assets"
+              />
               <label className="flex items-center gap-2 text-sm font-light text-charcoal-600">
                 <input type="checkbox" checked={form.is_indexed ?? true} onChange={(e) => setForm({ ...form, is_indexed: e.target.checked })} className="h-4 w-4 accent-navy-900" /> Allow search engines to index
               </label>

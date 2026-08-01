@@ -1,9 +1,11 @@
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import {
   ChevronDown, ChevronUp, Trash2, Copy, RefreshCw, GripVertical,
-  Check,
+  Check, ImageIcon, X, Search, Loader2,
 } from 'lucide-react';
 import { colorSwatches } from '@/config/customisation';
+import { fetchMedia } from '@/lib/admin-api';
+import type { MediaAsset } from '@/lib/admin-types';
 import type { QuickProduct } from './quick-collection-types';
 import {
   workTypeOptions, productTypeOptions, componentOptions,
@@ -19,6 +21,7 @@ type Props = {
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   onReplaceImage: (id: string, file: File) => void;
+  onReplaceImageUrl: (id: string, url: string) => void;
   onToggleExpand: (id: string) => void;
   onToggleArray: (id: string, field: keyof QuickProduct, value: string) => void;
   onDragStart: (id: string) => void;
@@ -28,10 +31,11 @@ type Props = {
 
 function QuickProductCardBase({
   product, index, codeErr, isDragging,
-  onUpdate, onRemove, onDuplicate, onReplaceImage, onToggleExpand, onToggleArray,
+  onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onToggleExpand, onToggleArray,
   onDragStart, onDragEnter, onDragEnd,
 }: Props) {
   const replaceInputId = `replace-img-${product.id}`;
+  const [libOpen, setLibOpen] = useState(false);
 
   return (
     <div
@@ -60,7 +64,7 @@ function QuickProductCardBase({
           <label
             htmlFor={replaceInputId}
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-white/90 text-charcoal-600 transition-colors hover:bg-white"
-            title="Replace image"
+            title="Replace image from device"
           >
             <RefreshCw size={13} />
           </label>
@@ -71,6 +75,13 @@ function QuickProductCardBase({
             className="hidden"
             onChange={(e) => { if (e.target.files?.[0]) onReplaceImage(product.id, e.target.files[0]); e.target.value = ''; }}
           />
+          <button
+            onClick={() => setLibOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-charcoal-600 transition-colors hover:bg-white"
+            title="Choose from Media Library"
+          >
+            <ImageIcon size={13} />
+          </button>
           <button
             onClick={() => onDuplicate(product.id)}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-charcoal-600 transition-colors hover:bg-white"
@@ -245,6 +256,12 @@ function QuickProductCardBase({
           </div>
         </div>
       )}
+      {libOpen && (
+        <QuickImageLibraryModal
+          onClose={() => setLibOpen(false)}
+          onSelect={(url) => { onReplaceImageUrl(product.id, url); setLibOpen(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -263,6 +280,63 @@ function Chip({ label, selected, onClick }: { label: string; selected: boolean; 
       {selected && <Check size={9} className="mr-0.5 inline" />}
       {label}
     </button>
+  );
+}
+
+function QuickImageLibraryModal({ onClose, onSelect }: { onClose: () => void; onSelect: (url: string) => void }) {
+  const [media, setMedia] = useState<MediaAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchMedia().then((data) => { setMedia(data.filter((m) => m.type === 'image')); setLoading(false); });
+  }, []);
+
+  let display = media;
+  if (search) {
+    const q = search.toLowerCase();
+    display = display.filter((m) => m.name.toLowerCase().includes(q));
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-navy-950/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex h-[70vh] w-full max-w-3xl flex-col overflow-hidden rounded-luxury-lg bg-ivory-50 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-navy-50 bg-white px-6 py-4">
+          <h2 className="text-lg font-serif font-medium text-navy-900">Choose Image</h2>
+          <button onClick={onClose} className="text-charcoal-400 hover:text-navy-900"><X size={20} /></button>
+        </div>
+        <div className="p-4">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal-300" />
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search images..." className="w-full rounded-luxury border border-navy-100 bg-white py-2 pl-9 pr-3 text-sm focus:border-gold-400 focus:outline-none" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex h-full items-center justify-center"><Loader2 size={24} className="animate-spin text-charcoal-300" /></div>
+          ) : display.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <ImageIcon size={32} className="mx-auto text-charcoal-300" strokeWidth={1} />
+                <p className="mt-2 text-sm font-light text-charcoal-400">No images found</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-6">
+              {display.map((asset) => (
+                <button key={asset.id} onClick={() => onSelect(asset.url)} className="group relative aspect-square overflow-hidden rounded-luxury border border-navy-50 bg-ivory-100 transition-all hover:border-gold-400 hover:shadow-soft">
+                  <img src={asset.url} alt={asset.alt_text ?? asset.name} className="h-full w-full object-cover" loading="lazy" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-navy-950/40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-500 text-navy-900"><Check size={16} strokeWidth={3} /></span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -147,6 +147,7 @@ export async function submitEnquiry(input: EnquiryInput): Promise<ApiResult<null
       mobile: input.mobile.trim(),
       email: input.email?.trim() || null,
       message: input.message.trim(),
+      notes: input.message.trim(),
       enquiry_type: input.enquiry_type ?? 'general',
       status: 'new',
     });

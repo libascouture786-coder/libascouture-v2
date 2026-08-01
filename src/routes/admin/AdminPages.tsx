@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Save, Loader2, FileText, Globe } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchWebsitePages, updateWebsitePage } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import type { WebsitePage } from '@/lib/admin-types';
@@ -105,11 +106,12 @@ export function AdminPages() {
                 <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-charcoal-400">Title</label>
                 <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="input-luxury w-full" />
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-charcoal-400">Hero Image URL</label>
-                <input type="url" value={heroImage} onChange={(e) => setHeroImage(e.target.value)} placeholder="https://..." className="input-luxury w-full" />
-                {heroImage && <img src={heroImage} alt="Hero preview" className="mt-2 h-32 w-full rounded-luxury object-cover" />}
-              </div>
+              <MediaPicker
+                value={heroImage}
+                onChange={setHeroImage}
+                label="Hero Image"
+                folder="homepage_banners"
+              />
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 text-sm font-light text-charcoal-600">
                   <input type="checkbox" checked={isVisible} onChange={(e) => setIsVisible(e.target.checked)} className="h-4 w-4 accent-navy-900" /> Visible

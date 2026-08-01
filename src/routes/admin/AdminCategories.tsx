@@ -5,6 +5,7 @@ import {
   Package, Check, Layers, Zap,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import {
   fetchCollections, insertCollection, updateCollection, deleteCollection,
   fetchCollectionProducts, setCollectionProducts, searchProducts,
@@ -39,8 +40,6 @@ export function AdminCategories() {
   const [form, setForm] = useState<CollectionForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const { notify } = useToast();
-  const [bannerUploading, setBannerUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -66,25 +65,6 @@ export function AdminCategories() {
       collection_type: col.collection_type ?? '',
       cover_product_id: col.cover_product_id ?? '',
     });
-  };
-
-  const handleBannerUpload = async (files: FileList) => {
-    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
-    if (!file) return;
-    setBannerUploading(true);
-    try {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', upsert: false });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
-      setForm((prev) => ({ ...prev, banner_image: pub.publicUrl }));
-      notify('Banner image uploaded.');
-    } catch {
-      notify('Failed to upload banner image.', 'error');
-    } finally {
-      setBannerUploading(false);
-    }
   };
 
   const save = async () => {
@@ -205,10 +185,6 @@ export function AdminCategories() {
           form={form}
           setForm={setForm}
           saving={saving}
-          bannerUploading={bannerUploading}
-          dragActive={dragActive}
-          setDragActive={setDragActive}
-          onBannerUpload={handleBannerUpload}
           onSave={save}
           onClose={() => { setEditing(null); setCreating(false); }}
         />
@@ -224,10 +200,6 @@ function CollectionDrawer({
   form,
   setForm,
   saving,
-  bannerUploading,
-  dragActive,
-  setDragActive,
-  onBannerUpload,
   onSave,
   onClose,
 }: {
@@ -235,10 +207,6 @@ function CollectionDrawer({
   form: CollectionForm;
   setForm: React.Dispatch<React.SetStateAction<CollectionForm>>;
   saving: boolean;
-  bannerUploading: boolean;
-  dragActive: boolean;
-  setDragActive: (v: boolean) => void;
-  onBannerUpload: (files: FileList) => void;
   onSave: () => void;
   onClose: () => void;
 }) {
@@ -286,40 +254,12 @@ function CollectionDrawer({
           </div>
 
           {/* Banner Image */}
-          <div>
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Banner Image</label>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => document.getElementById('collection-banner-input')?.click()}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('collection-banner-input')?.click(); } }}
-              onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-              onDrop={(e) => { e.preventDefault(); setDragActive(false); onBannerUpload(e.dataTransfer.files); }}
-              className={`cursor-pointer rounded-luxury border-2 border-dashed p-5 text-center transition-colors ${dragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100 hover:border-gold-300 hover:bg-ivory-50'}`}
-            >
-              <input id="collection-banner-input" type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files) onBannerUpload(e.target.files); e.target.value = ''; }} />
-              {form.banner_image ? (
-                <div className="relative">
-                  <img src={form.banner_image} alt="Banner preview" className="mx-auto h-32 w-full rounded-luxury object-cover" />
-                  <p className="mt-2 text-xs font-light text-charcoal-500">Click to replace banner</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gold-50 text-gold-500">
-                    <ImageIcon size={20} strokeWidth={1.5} className={bannerUploading ? 'animate-pulse' : ''} />
-                  </div>
-                  <p className="mt-2 text-sm font-medium text-navy-900">{bannerUploading ? 'Uploading...' : 'Upload banner image'}</p>
-                  <p className="mt-1 text-xs font-light text-charcoal-400">Drag & drop or click to browse</p>
-                </>
-              )}
-            </div>
-            {form.banner_image && (
-              <button onClick={() => setForm({ ...form, banner_image: '' })} className="mt-2 text-xs font-light text-red-500 hover:underline">
-                Remove banner
-              </button>
-            )}
-          </div>
+          <MediaPicker
+            value={form.banner_image}
+            onChange={(url) => setForm({ ...form, banner_image: url })}
+            label="Banner Image"
+            folder="homepage_banners"
+          />
 
           {/* Description */}
           <div>

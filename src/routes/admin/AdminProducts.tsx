@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Plus, Search, Check, X, Eye,
+  Plus, Search, Check, X, Eye, Trash2,
   Star, Package, Loader2,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/admin-api';
+import { useToast } from '@/context/ToastContext';
 import type { ProductWithImages } from '@/lib/types';
 
 const statusOptions = [
@@ -36,6 +37,9 @@ export function AdminProducts() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { notify } = useToast();
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -108,6 +112,19 @@ export function AdminProducts() {
     setBulkAction('');
     setSelected(new Set());
     fetchProducts();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    await supabase.from('product_images').delete().eq('product_id', deleteId);
+    await supabase.from('collection_products').delete().eq('product_id', deleteId);
+    await supabase.from('products').delete().eq('id', deleteId);
+    await logActivity('product_deleted', `Deleted product`, 'product', deleteId);
+    setDeleting(false);
+    setDeleteId(null);
+    fetchProducts();
+    notify('Product deleted.');
   };
 
   return (
@@ -223,9 +240,14 @@ export function AdminProducts() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link to={`/admin/products/${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-luxury text-charcoal-400 hover:bg-ivory-200 hover:text-navy-900">
-                          <Eye size={15} />
-                        </Link>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link to={`/admin/products/${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-luxury text-charcoal-400 hover:bg-ivory-200 hover:text-navy-900">
+                            <Eye size={15} />
+                          </Link>
+                          <button onClick={() => setDeleteId(p.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-luxury text-charcoal-400 hover:bg-red-50 hover:text-red-500">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -244,12 +266,32 @@ export function AdminProducts() {
                     <p className="text-xs font-light text-charcoal-400">{p.code ?? '—'} • {p.category_slug ?? '—'}</p>
                   </div>
                   <StatusBadge status={p.status ?? ''} active={p.is_active} />
+                  <button onClick={() => setDeleteId(p.id)} className="flex h-8 w-8 items-center justify-center rounded-luxury text-charcoal-400 hover:bg-red-50 hover:text-red-500">
+                    <Trash2 size={15} />
+                  </button>
                 </div>
               ))}
             </div>
           </>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-navy-950/50 backdrop-blur-sm" onClick={() => setDeleteId(null)} />
+          <div className="relative w-full max-w-md rounded-luxury-lg bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-serif font-medium text-navy-900">Delete Product?</h3>
+            <p className="mt-2 text-sm font-light text-charcoal-500">This will permanently delete the product and all its images. This cannot be undone.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setDeleteId(null)} className="rounded-luxury border border-navy-100 bg-white px-4 py-2 text-xs font-medium text-charcoal-600 hover:bg-ivory-200">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 rounded-luxury bg-red-500 px-4 py-2 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50">
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

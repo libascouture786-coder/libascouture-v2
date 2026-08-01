@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Copy, Loader2, Plus, X, Upload, Check,
-  ImageIcon, Video, ChevronLeft, ChevronRight, Shirt, Sparkles,
+  ImageIcon, ChevronLeft, ChevronRight, Shirt, Sparkles,
   Palette, Scissors, Layers, FileText, LayoutGrid, Link2, Search,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import { supabase } from '@/lib/supabase';
-import { logActivity, fetchCategories, searchProducts } from '@/lib/admin-api';
+import { logActivity, fetchCategories, searchProducts, fetchMedia, insertMedia } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import { fabricOptions, colorSwatches } from '@/config/customisation';
 
@@ -109,12 +110,9 @@ export function AdminProductForm() {
   const [thumbnailIndex, setThumbnailIndex] = useState(0);
   const [videoUrl, setVideoUrl] = useState('');
   const [newImageUrl, setNewImageUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [videoDragActive, setVideoDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (files: FileList) => {
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
@@ -137,26 +135,6 @@ export function AdminProductForm() {
       notify('Failed to upload image(s). Please try again.', 'error');
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleVideoUpload = async (files: FileList) => {
-    const videoFile = Array.from(files).find((f) => f.type.startsWith('video/'));
-    if (!videoFile) return;
-    setUploadingVideo(true);
-    try {
-      const ext = videoFile.name.split('.').pop() ?? 'mp4';
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from('product-images').upload(path, videoFile, { cacheControl: '3600', upsert: false });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
-      setVideoUrl(pub.publicUrl);
-      setErrors((prev) => { const next = { ...prev }; delete next.video; return next; });
-      notify('Video added.', 'success');
-    } catch {
-      notify('Failed to upload video. Please try again.', 'error');
-    } finally {
-      setUploadingVideo(false);
     }
   };
 
@@ -460,6 +438,7 @@ export function AdminProductForm() {
                 </div>
               </Field>
 
+              {/* Add from Media Library */}
               <div className="mt-3 flex gap-2">
                 <input type="url" value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} className="input-luxury flex-1" placeholder="Or paste an image URL..." />
                 <button
@@ -469,6 +448,7 @@ export function AdminProductForm() {
                   <Plus size={14} /> Add
                 </button>
               </div>
+              <MediaGalleryPicker onAdd={(url) => setImageUrls((prev) => [...prev, url])} />
             </div>
 
             {/* Image grid + thumbnail selection */}
@@ -515,46 +495,13 @@ export function AdminProductForm() {
             {/* Video upload */}
             <div className="border-t border-navy-50 pt-6">
               <Field label="Showcase Video (optional)">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => videoInputRef.current?.click()}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); videoInputRef.current?.click(); } }}
-                  onDragOver={(e) => { e.preventDefault(); setVideoDragActive(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setVideoDragActive(false); }}
-                  onDrop={(e) => { e.preventDefault(); setVideoDragActive(false); handleVideoUpload(e.dataTransfer.files); }}
-                  className={`cursor-pointer rounded-luxury border-2 border-dashed p-6 text-center transition-colors ${videoDragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100 hover:border-gold-300 hover:bg-ivory-50'}`}
-                >
-                  <input
-                    ref={videoInputRef}
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => { if (e.target.files) handleVideoUpload(e.target.files); e.target.value = ''; }}
-                    className="hidden"
-                  />
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-navy-50 text-navy-700">
-                    <Video size={20} strokeWidth={1.5} className={uploadingVideo ? 'animate-pulse' : ''} />
-                  </div>
-                  <p className="mt-2 text-sm font-medium text-navy-900">{uploadingVideo ? 'Uploading video...' : 'Drag & drop or click to upload a video'}</p>
-                  <p className="mt-1 text-xs font-light text-charcoal-400">One optional showcase video</p>
-                </div>
+                <MediaPicker
+                  value={videoUrl}
+                  onChange={setVideoUrl}
+                  mediaType="video"
+                  folder="product_videos"
+                />
               </Field>
-
-              {videoUrl && (
-                <div className="mt-3 flex items-center gap-3 rounded-luxury border border-navy-50 bg-ivory-50 p-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-luxury bg-navy-900 text-ivory-100">
-                    <Video size={16} />
-                  </div>
-                  <span className="flex-1 truncate text-xs font-light text-charcoal-600">{videoUrl}</span>
-                  <button
-                    onClick={() => setVideoUrl('')}
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-red-500 transition-colors hover:bg-red-50"
-                    aria-label="Remove video"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1277,6 +1224,132 @@ function RelatedProductPicker({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Media Gallery Picker (adds images from Media Library) ────────── */
+function MediaGalleryPicker({ onAdd }: { onAdd: (url: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-luxury border border-gold-200 bg-gold-50/50 px-3 py-2 text-xs font-medium text-gold-800 transition-colors hover:bg-gold-50"
+      >
+        <ImageIcon size={13} /> Choose from Media Library
+      </button>
+      {open && (
+        <MediaLibraryGalleryModal
+          onClose={() => setOpen(false)}
+          onSelect={(url) => { onAdd(url); }}
+        />
+      )}
+    </>
+  );
+}
+
+function MediaLibraryGalleryModal({
+  onClose,
+  onSelect,
+}: {
+  onClose: () => void;
+  onSelect: (url: string) => void;
+}) {
+  const [media, setMedia] = useState<Awaited<ReturnType<typeof fetchMedia>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchMedia().then((data) => { setMedia(data.filter((m) => m.type === 'image')); setLoading(false); });
+  }, []);
+
+  let display = media;
+  if (search) {
+    const q = search.toLowerCase();
+    display = display.filter((m) => m.name.toLowerCase().includes(q));
+  }
+
+  const handleUpload = async (files: FileList) => {
+    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', upsert: false });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
+      await insertMedia({
+        name: file.name, url: pub.publicUrl, type: 'image',
+        folder: 'product_images', size_bytes: file.size, width: null, height: null, alt_text: null, usage_type: null,
+      });
+      const data = await fetchMedia();
+      setMedia(data.filter((m) => m.type === 'image'));
+    } catch {
+      // silent
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-navy-950/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-luxury-lg bg-ivory-50 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-navy-50 bg-white px-6 py-4">
+          <h2 className="text-lg font-serif font-medium text-navy-900">Choose Image from Library</h2>
+          <button onClick={onClose} className="text-charcoal-400 hover:text-navy-900"><X size={20} /></button>
+        </div>
+        <div className="flex flex-1 flex-col overflow-hidden p-4">
+          <div className="mb-3 flex gap-2">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex cursor-pointer items-center gap-1.5 rounded-luxury border-2 border-dashed border-navy-100 px-3 py-2 text-xs font-medium hover:border-gold-300"
+            >
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }} />
+              {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Upload
+            </div>
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal-300" />
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="w-full rounded-luxury border border-navy-100 bg-white py-2 pl-9 pr-3 text-sm focus:border-gold-400 focus:outline-none" />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-6">
+                {Array.from({ length: 12 }).map((_, i) => <div key={i} className="skeleton aspect-square rounded-luxury" />)}
+              </div>
+            ) : display.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <ImageIcon size={32} className="mx-auto text-charcoal-300" strokeWidth={1} />
+                  <p className="mt-2 text-sm font-light text-charcoal-400">No images found</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-6">
+                {display.map((asset) => (
+                  <button
+                    key={asset.id}
+                    onClick={() => { onSelect(asset.url); onClose(); }}
+                    className="group relative aspect-square overflow-hidden rounded-luxury border border-navy-50 bg-ivory-100 transition-all hover:border-gold-400 hover:shadow-soft"
+                  >
+                    <img src={asset.url} alt={asset.alt_text ?? asset.name} className="h-full w-full object-cover" loading="lazy" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-navy-950/40 opacity-0 transition-opacity group-hover:opacity-100">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-500 text-navy-900"><Check size={16} strokeWidth={3} /></span>
+                    </div>
+                    <p className="absolute bottom-0 left-0 right-0 truncate bg-navy-950/60 px-1.5 py-0.5 text-[9px] font-light text-ivory-100">{asset.name}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
