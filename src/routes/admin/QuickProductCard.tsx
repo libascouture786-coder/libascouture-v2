@@ -1,16 +1,13 @@
 import { memo, useEffect, useState } from 'react';
 import {
-  ChevronDown, ChevronUp, Trash2, Copy, RefreshCw, GripVertical,
-  Check, ImageIcon, X, Search, Loader2,
+  Trash2, Copy, RefreshCw, GripVertical, ImageIcon, X, Search,
+  Loader2, Check, ChevronRight,
 } from 'lucide-react';
-import { colorSwatches } from '@/config/customisation';
+import { colorSwatches, fabricOptions } from '@/config/customisation';
 import { fetchMedia } from '@/lib/admin-api';
 import type { MediaAsset } from '@/lib/admin-types';
 import type { QuickProduct } from './quick-collection-types';
-import {
-  workTypeOptions, productTypeOptions, componentOptions,
-  accessoryOptions, customisationOptionList, customisationLevelOptions,
-} from './quick-collection-types';
+import { workTypeOptions } from './quick-collection-types';
 
 type Props = {
   product: QuickProduct;
@@ -22,8 +19,7 @@ type Props = {
   onDuplicate: (id: string) => void;
   onReplaceImage: (id: string, file: File) => void;
   onReplaceImageUrl: (id: string, url: string) => void;
-  onToggleExpand: (id: string) => void;
-  onToggleArray: (id: string, field: keyof QuickProduct, value: string) => void;
+  onAddMoreDetails: (id: string) => void;
   onDragStart: (id: string) => void;
   onDragEnter: (id: string) => void;
   onDragEnd: () => void;
@@ -31,7 +27,7 @@ type Props = {
 
 function QuickProductCardBase({
   product, index, codeErr, isDragging,
-  onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onToggleExpand, onToggleArray,
+  onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onAddMoreDetails,
   onDragStart, onDragEnter, onDragEnd,
 }: Props) {
   const replaceInputId = `replace-img-${product.id}`;
@@ -100,32 +96,47 @@ function QuickProductCardBase({
         <span className="absolute bottom-1.5 left-1.5 rounded-full bg-navy-950/70 px-2 py-0.5 text-[9px] font-medium text-ivory-100 backdrop-blur-sm">
           {index + 1}
         </span>
+        {product.savedProductId && (
+          <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 rounded-full bg-green-500/90 px-1.5 py-0.5 text-[8px] font-medium text-white backdrop-blur-sm">
+            <Check size={8} strokeWidth={3} /> Saved
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div>
-          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Design No. *</label>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Product Code *</label>
           <input
             type="text"
             value={product.code}
-            onChange={(e) => onUpdate(product.id, { code: e.target.value, name: product.name === `Design ${index + 1}` || !product.name ? e.target.value : product.name })}
+            onChange={(e) => onUpdate(product.id, { code: e.target.value })}
             className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
             placeholder="LC-001"
           />
           {codeErr && <p className="mt-0.5 text-[9px] text-red-500">{codeErr}</p>}
         </div>
         <div>
-          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Name (optional)</label>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Product Name</label>
           <input
             type="text"
             value={product.name}
             onChange={(e) => onUpdate(product.id, { name: e.target.value })}
             className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
-            placeholder="Auto from design no."
+            placeholder="Product name"
           />
         </div>
         <div>
-          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Colour</label>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Price</label>
+          <input
+            type="text"
+            value={product.price}
+            onChange={(e) => onUpdate(product.id, { price: e.target.value })}
+            className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
+            placeholder="e.g. 25000"
+          />
+        </div>
+        <div>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Color</label>
           <select
             value={product.color}
             onChange={(e) => onUpdate(product.id, { color: e.target.value })}
@@ -135,127 +146,37 @@ function QuickProductCardBase({
             {colorSwatches.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
           </select>
         </div>
+        <div>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Fabric</label>
+          <select
+            value={product.fabric}
+            onChange={(e) => onUpdate(product.id, { fabric: e.target.value })}
+            className="w-full appearance-none rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 focus:border-gold-400 focus:outline-none"
+          >
+            <option value="">Select</option>
+            {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Work Type</label>
+          <select
+            value={product.work_type}
+            onChange={(e) => onUpdate(product.id, { work_type: e.target.value })}
+            className="w-full appearance-none rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 focus:border-gold-400 focus:outline-none"
+          >
+            <option value="">Select</option>
+            {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </div>
 
         <button
-          onClick={() => onToggleExpand(product.id)}
-          className="flex items-center justify-center gap-1 rounded-md border border-navy-50 py-1.5 text-[10px] font-medium text-charcoal-500 transition-colors hover:bg-ivory-100"
+          onClick={() => onAddMoreDetails(product.id)}
+          className="mt-1 flex items-center justify-center gap-1 rounded-md bg-navy-900 py-2 text-[10px] font-medium text-ivory-100 transition-colors hover:bg-navy-800"
         >
-          {product.expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-          More Details
+          Add More Details <ChevronRight size={11} />
         </button>
       </div>
 
-      {product.expanded && (
-        <div className="border-t border-navy-50 bg-ivory-50/50 p-3">
-          <p className="mb-2 text-[9px] font-light text-charcoal-400">Empty fields inherit from collection defaults.</p>
-          <div className="grid gap-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Fabric</label>
-                <input
-                  type="text"
-                  value={product.fabric_main}
-                  onChange={(e) => onUpdate(product.id, { fabric_main: e.target.value })}
-                  className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                  placeholder="Inherit"
-                />
-              </div>
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Work</label>
-                <select
-                  value={product.work_type}
-                  onChange={(e) => onUpdate(product.id, { work_type: e.target.value })}
-                  className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                >
-                  <option value="">Inherit</option>
-                  {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Product Type</label>
-                <select
-                  value={product.product_type}
-                  onChange={(e) => onUpdate(product.id, { product_type: e.target.value })}
-                  className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                >
-                  <option value="">Inherit</option>
-                  {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Customisation</label>
-                <select
-                  value={product.customisation_level}
-                  onChange={(e) => onUpdate(product.id, { customisation_level: e.target.value })}
-                  className="w-full appearance-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                >
-                  <option value="">Inherit</option>
-                  {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Description</label>
-              <textarea
-                rows={2}
-                value={product.description}
-                onChange={(e) => onUpdate(product.id, { description: e.target.value })}
-                className="w-full resize-none rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                placeholder="Inherit"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[9px] uppercase tracking-wide text-charcoal-400">Components</label>
-              <div className="flex flex-wrap gap-1">
-                {componentOptions.map((c) => (
-                  <Chip key={c} label={c} selected={product.components.includes(c)} onClick={() => onToggleArray(product.id, 'components', c)} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-[9px] uppercase tracking-wide text-charcoal-400">Accessories</label>
-              <div className="flex flex-wrap gap-1">
-                {accessoryOptions.map((a) => (
-                  <Chip key={a} label={a} selected={product.accessories.includes(a)} onClick={() => onToggleArray(product.id, 'accessories', a)} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-[9px] uppercase tracking-wide text-charcoal-400">Customisation</label>
-              <div className="flex flex-wrap gap-1">
-                {customisationOptionList.map((c) => (
-                  <Chip key={c} label={c} selected={product.customisation_options.includes(c)} onClick={() => onToggleArray(product.id, 'customisation_options', c)} />
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2">
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">SEO Title</label>
-                <input
-                  type="text"
-                  value={product.seo_title}
-                  onChange={(e) => onUpdate(product.id, { seo_title: e.target.value })}
-                  className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                  placeholder="Inherit"
-                />
-              </div>
-              <div>
-                <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">SEO Description</label>
-                <input
-                  type="text"
-                  value={product.seo_description}
-                  onChange={(e) => onUpdate(product.id, { seo_description: e.target.value })}
-                  className="w-full rounded-md border border-navy-50 bg-white px-2 py-1.5 text-xs focus:border-gold-400 focus:outline-none"
-                  placeholder="Inherit"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {libOpen && (
         <QuickImageLibraryModal
           onClose={() => setLibOpen(false)}
@@ -263,23 +184,6 @@ function QuickProductCardBase({
         />
       )}
     </div>
-  );
-}
-
-function Chip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-2 py-1 text-[10px] font-medium transition-all ${
-        selected
-          ? 'border-gold-500 bg-gold-50 text-gold-900'
-          : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300 hover:bg-ivory-50'
-      }`}
-    >
-      {selected && <Check size={9} className="mr-0.5 inline" />}
-      {label}
-    </button>
   );
 }
 

@@ -1,28 +1,22 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, Loader2, Save, Eye, Plus,
-  Check, AlertCircle, Layers, Settings2,
+  Upload, Loader2, Save, Plus, Check, Layers, AlertCircle,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
-import { MediaPicker } from '@/components/admin/MediaPicker';
 import { supabase } from '@/lib/supabase';
-import { logActivity, insertCollection, setCollectionProducts } from '@/lib/admin-api';
+import { logActivity } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
-import { fabricOptions } from '@/config/customisation';
 import { QuickProductCard } from './QuickProductCard';
 import {
-  type QuickProduct, type CollectionForm, type CollectionDefaults, emptyCollection,
-  occasionOptions, productTypeOptions, accessoryOptions, workTypeOptions,
-  customisationLevelOptions, componentOptions, customisationOptionList,
-  makeProduct, resolveProduct,
+  type QuickProduct, occasionOptions, makeProduct,
 } from './quick-collection-types';
 
 const AUTOSAVE_KEY = 'quick-collection-draft';
 const AUTOSAVE_INTERVAL = 4000;
 
 type AutosaveState = {
-  collection: CollectionForm;
+  occasions: string[];
   products: QuickProduct[];
   savedAt: number;
 };
@@ -39,9 +33,9 @@ function loadDraft(): AutosaveState | null {
   }
 }
 
-function saveDraft(collection: CollectionForm, products: QuickProduct[]) {
+function saveDraft(occasions: string[], products: QuickProduct[]) {
   try {
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ collection, products, savedAt: Date.now() }));
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ occasions, products, savedAt: Date.now() }));
   } catch {
     /* storage full or unavailable */
   }
@@ -55,7 +49,7 @@ export function AdminQuickCollection() {
   const navigate = useNavigate();
   const { notify } = useToast();
 
-  const [collection, setCollection] = useState<CollectionForm>(emptyCollection);
+  const [occasions, setOccasions] = useState<string[]>([]);
   const [products, setProducts] = useState<QuickProduct[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -63,7 +57,6 @@ export function AdminQuickCollection() {
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
-  const [defaultsExpanded, setDefaultsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragIdRef = useRef<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -72,24 +65,33 @@ export function AdminQuickCollection() {
   useEffect(() => {
     const draft = loadDraft();
     if (draft) {
-      setCollection(draft.collection);
-      setProducts(draft.products.map((p) => ({ ...p, expanded: false })));
+      setOccasions(draft.occasions ?? []);
+      setProducts(draft.products);
       setRestored(true);
     }
   }, []);
 
   /* ── Autosave ───────────────────────────────────────────────────── */
   useEffect(() => {
-    if (products.length === 0 && !collection.name) return;
+    if (products.length === 0 && occasions.length === 0) return;
     setAutosaveStatus('saving');
     const t = setTimeout(() => {
-      saveDraft(collection, products);
+      saveDraft(occasions, products);
       setAutosaveStatus('saved');
     }, AUTOSAVE_INTERVAL);
     return () => clearTimeout(t);
-  }, [collection, products]);
+  }, [occasions, products]);
 
-  /* ── Image upload (parallel for speed) ──────────────────────────── */
+  /* ── Occasion toggle ────────────────────────────────────────────── */
+  const toggleOccasion = (occasion: string) => {
+    setOccasions((prev) =>
+      prev.includes(occasion)
+        ? prev.filter((o) => o !== occasion)
+        : [...prev, occasion]
+    );
+  };
+
+  /* ── Image upload (parallel) ────────────────────────────────────── */
   const handleImageUpload = useCallback(async (files: FileList) => {
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
@@ -111,7 +113,7 @@ export function AdminQuickCollection() {
         const newProducts = uploaded.map((url, i) => {
           const n = startIdx + i + 1;
           const code = `LC-${String(n).padStart(3, '0')}`;
-          return makeProduct(url, code, code);
+          return makeProduct(url, code);
         });
         return [...prev, ...newProducts];
       });
@@ -151,24 +153,12 @@ export function AdminQuickCollection() {
         id: crypto.randomUUID(),
         name: `${prev[idx].name} (Copy)`,
         code: '',
-        expanded: false,
+        savedProductId: null,
       };
       const next = [...prev];
       next.splice(idx + 1, 0, copy);
       return next;
     });
-  }, []);
-
-  const toggleExpand = useCallback((id: string) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, expanded: !p.expanded } : p)));
-  }, []);
-
-  const toggleArray = useCallback((id: string, field: keyof QuickProduct, value: string) => {
-    setProducts((prev) => prev.map((p) => {
-      if (p.id !== id) return p;
-      const arr = p[field] as string[];
-      return { ...p, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] };
-    }));
   }, []);
 
   /* ── Drag & drop sorting ────────────────────────────────────────── */
@@ -191,22 +181,10 @@ export function AdminQuickCollection() {
     });
   }, [dragOverId]);
 
-  /* ── Collection defaults ───────────────────────────────────────── */
-  const updateDefaults = (patch: Partial<CollectionDefaults>) => {
-    setCollection((prev) => ({ ...prev, defaults: { ...prev.defaults, ...patch } }));
-  };
-
-  const toggleDefaultsArray = (field: 'components' | 'accessories' | 'customisation_options', value: string) => {
-    setCollection((prev) => {
-      const arr = prev.defaults[field];
-      return { ...prev, defaults: { ...prev.defaults, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] } };
-    });
-  };
-
-  /* ── Validation (only image + design number) ────────────────────── */
+  /* ── Validation ─────────────────────────────────────────────────── */
   const validationErrors = useMemo(() => {
     const errs: Record<string, string> = {};
-    if (!collection.name.trim()) errs.collectionName = 'Collection name is required';
+    if (occasions.length === 0) errs.occasions = 'Select at least one occasion';
     if (products.length === 0) errs.products = 'Upload at least one product image';
     const seenCodes = new Set<string>();
     products.forEach((p) => {
@@ -215,7 +193,7 @@ export function AdminQuickCollection() {
       else seenCodes.add(p.code.trim().toLowerCase());
     });
     return errs;
-  }, [collection.name, products]);
+  }, [occasions, products]);
 
   const isValid = Object.keys(validationErrors).length === 0;
 
@@ -223,62 +201,48 @@ export function AdminQuickCollection() {
   const completedCount = useMemo(() => products.filter((p) => p.code.trim()).length, [products]);
   const remainingCount = products.length - completedCount;
 
-  /* ── Save: create collection + every product individually ──────── */
+  /* ── Save: create each product in the products table ────────────── */
   const handleSave = async (publish: boolean) => {
     if (!isValid) {
-      notify('Please complete required fields (collection name + design number for every product).', 'error');
+      notify('Please select at least one occasion and fill in design number for every product.', 'error');
       return;
     }
     setSaving(true);
     setSaveProgress({ done: 0, total: products.length });
     try {
-      const slug = collection.slug || collection.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-      const col = await insertCollection({
-        name: collection.name.trim(),
-        slug,
-        description: collection.description.trim() || null,
-        banner_image: collection.banner_image || null,
-        collection_type: collection.occasion || null,
-        cover_product_id: null,
-      });
-      if (!col) throw new Error('Failed to create collection');
-      const collectionId = col.id;
-
-      const createdProductIds: string[] = [];
       for (let i = 0; i < products.length; i++) {
         const p = products[i];
-        const resolved = resolveProduct(p, collection.defaults);
         const title = p.name.trim() || p.code.trim();
-        const productSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${i + 1}`;
+        const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
+
         const productData = {
-          slug: `${productSlug}-${i + 1}`,
+          slug: productSlug,
           title,
           code: p.code.trim(),
           excerpt: '',
-          description: resolved.description.trim() || null,
+          description: null,
           category_id: null,
           category_slug: 'bridal',
-          price: null,
-          price_on_request: true,
-          price_type: 'price_on_request',
+          price: priceVal,
+          price_on_request: !priceVal,
+          price_type: priceVal ? 'fixed' : 'price_on_request',
           status: publish ? 'made_on_order' : 'signature',
-          work_type: resolved.work_type || 'handwork',
-          product_type: resolved.product_type || null,
-          occasion: collection.occasion,
-          occasions: [collection.occasion],
+          work_type: p.work_type || 'Hand Work',
+          occasion: occasions[0] ?? null,
+          occasions,
           colors: p.color ? [p.color] : [],
           color: p.color || null,
           color_main: p.color || null,
-          fabric_main: resolved.fabric_main || null,
-          fabric: resolved.fabric_main || null,
+          fabric: p.fabric || null,
+          fabric_main: p.fabric || null,
           embroidery: [],
-          includes: resolved.components,
-          accessories: resolved.accessories,
+          includes: [],
+          accessories: [],
           hand_work_details: [],
-          customisation_options: resolved.customisation_options,
-          customisation_level: resolved.customisation_level || 'Fully Customisable',
-          customisable: resolved.customisation_level !== 'Not Customisable',
+          customisation_options: [],
+          customisation_level: 'Fully Customisable',
+          customisable: true,
           highlights: [],
           care_instructions: null,
           website_placement: [],
@@ -293,8 +257,8 @@ export function AdminQuickCollection() {
           sort_order: i,
           thumbnail_index: 0,
           video_url: null,
-          seo_title: resolved.seo_title.trim() || null,
-          seo_description: resolved.seo_description.trim() || null,
+          seo_title: title,
+          seo_description: null,
           image_alt_text: title,
         };
 
@@ -316,42 +280,135 @@ export function AdminQuickCollection() {
         });
         if (imgErr) throw imgErr;
 
-        createdProductIds.push(productId);
+        setProducts((prev) => prev.map((item) =>
+          item.id === p.id ? { ...item, savedProductId: productId } : item
+        ));
         setSaveProgress({ done: i + 1, total: products.length });
       }
 
-      await setCollectionProducts(collectionId, createdProductIds);
-
-      if (createdProductIds.length > 0) {
-        await supabase.from('collections').update({ cover_product_id: createdProductIds[0] }).eq('id', collectionId);
-      }
-
-      await logActivity('collection_created', `Quick-created collection "${collection.name}" with ${createdProductIds.length} products`, 'collection', collectionId);
+      await logActivity(
+        'products_created',
+        `Quick-created ${products.length} products for ${occasions.join(', ')}`,
+        'product',
+        undefined,
+      );
 
       clearDraft();
-      notify(publish
-        ? `Collection published with ${createdProductIds.length} products.`
-        : `Collection saved as draft with ${createdProductIds.length} products.`, 'success');
-      navigate('/admin/collections');
+      notify(
+        publish
+          ? `${products.length} products published.`
+          : `${products.length} products saved as draft.`,
+        'success',
+      );
+      navigate('/admin/products');
     } catch {
-      notify('Failed to save collection. Please try again.', 'error');
+      notify('Failed to save products. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
+  /* ── Add More Details: save product then open full form ─────────── */
+  const handleAddMoreDetails = useCallback(async (id: string) => {
+    const p = products.find((item) => item.id === id);
+    if (!p) return;
+
+    if (!p.code.trim()) {
+      notify('Please fill in the product code first.', 'error');
+      return;
+    }
+
+    try {
+      const title = p.name.trim() || p.code.trim();
+      const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`;
+      const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
+
+      if (p.savedProductId) {
+        navigate(`/admin/products/${p.savedProductId}`);
+        return;
+      }
+
+      const productData = {
+        slug: productSlug,
+        title,
+        code: p.code.trim(),
+        excerpt: '',
+        description: null,
+        category_id: null,
+        category_slug: 'bridal',
+        price: priceVal,
+        price_on_request: !priceVal,
+        price_type: priceVal ? 'fixed' : 'price_on_request',
+        status: 'signature',
+        work_type: p.work_type || 'Hand Work',
+        occasion: occasions[0] ?? null,
+        occasions,
+        colors: p.color ? [p.color] : [],
+        color: p.color || null,
+        color_main: p.color || null,
+        fabric: p.fabric || null,
+        fabric_main: p.fabric || null,
+        embroidery: [],
+        includes: [],
+        accessories: [],
+        hand_work_details: [],
+        customisation_options: [],
+        customisation_level: 'Fully Customisable',
+        customisable: true,
+        highlights: [],
+        care_instructions: null,
+        website_placement: [],
+        visibility: 'website',
+        priority: 'Medium',
+        related_product_ids: [],
+        image_keys: [],
+        is_active: false,
+        is_featured: false,
+        is_new: true,
+        is_best_seller: false,
+        sort_order: 0,
+        thumbnail_index: 0,
+        video_url: null,
+        seo_title: title,
+        seo_description: null,
+        image_alt_text: title,
+      };
+
+      const { data: newProd, error: prodErr } = await supabase
+        .from('products')
+        .insert(productData)
+        .select('id')
+        .maybeSingle();
+      if (prodErr) throw prodErr;
+      const productId = newProd?.id;
+      if (!productId) throw new Error('Failed to create product');
+
+      const { error: imgErr } = await supabase.from('product_images').insert({
+        product_id: productId,
+        url: p.imageUrl,
+        alt: title,
+        sort_order: 0,
+        view_type: 'hero',
+      });
+      if (imgErr) throw imgErr;
+
+      setProducts((prev) => prev.map((item) =>
+        item.id === id ? { ...item, savedProductId: productId } : item
+      ));
+
+      navigate(`/admin/products/${productId}`);
+    } catch {
+      notify('Failed to create product for editing.', 'error');
+    }
+  }, [products, occasions, navigate, notify]);
+
   return (
     <AdminLayout>
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/admin/collections')} className="flex h-9 w-9 items-center justify-center rounded-luxury border border-navy-100 bg-white text-navy-900 transition-colors hover:bg-ivory-200">
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-h2 font-serif font-medium text-navy-900">Quick Collection Entry</h1>
-            <p className="mt-0.5 text-sm font-light text-charcoal-500">Upload dozens of products in minutes — only image and design number required</p>
-          </div>
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Quick Product Entry</h1>
+          <p className="mt-0.5 text-sm font-light text-charcoal-500">Upload multiple products at once — fill in basic details, then expand any product with the full editor</p>
         </div>
         <div className="flex items-center gap-2">
           {autosaveStatus === 'saved' && products.length > 0 && (
@@ -376,7 +433,7 @@ export function AdminQuickCollection() {
             disabled={saving || products.length === 0}
             className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Publish
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Publish
           </button>
         </div>
       </div>
@@ -385,7 +442,7 @@ export function AdminQuickCollection() {
       {restored && products.length > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-luxury border border-blue-100 bg-blue-50/50 px-4 py-2.5 text-xs text-blue-700">
           <span>Restored {products.length} product cards from your last session.</span>
-          <button onClick={() => { clearDraft(); setProducts([]); setCollection(emptyCollection); setRestored(false); }} className="font-medium text-blue-800 hover:underline">Discard</button>
+          <button onClick={() => { clearDraft(); setProducts([]); setOccasions([]); setRestored(false); }} className="font-medium text-blue-800 hover:underline">Discard</button>
         </div>
       )}
 
@@ -402,191 +459,39 @@ export function AdminQuickCollection() {
         </div>
       )}
 
-      {/* STEP 1 — COLLECTION INFORMATION */}
+      {/* STEP 1 — OCCASION SELECTION */}
       <section className="mb-6 rounded-luxury-lg border border-navy-50 bg-white p-6 shadow-soft sm:p-8">
         <div className="mb-5 flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy-900 text-xs font-medium text-ivory-100">1</span>
-          <h2 className="text-lg font-serif font-medium text-navy-900">Collection Information</h2>
+          <h2 className="text-lg font-serif font-medium text-navy-900">Select Occasions</h2>
+          <span className="text-[10px] font-light text-charcoal-400">— choose all that apply</span>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Collection Name *</label>
-            <input
-              type="text"
-              value={collection.name}
-              onChange={(e) => setCollection((prev) => ({
-                ...prev,
-                name: e.target.value,
-                slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-              }))}
-              className="input-luxury"
-              placeholder="e.g. Royal Bridal 2025"
-            />
-            {validationErrors.collectionName && <p className="mt-1 text-xs text-red-500">{validationErrors.collectionName}</p>}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Occasion *</label>
-            <div className="grid grid-cols-3 gap-2">
-              {occasionOptions.map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  onClick={() => setCollection((prev) => ({ ...prev, occasion: o }))}
-                  className={`rounded-luxury border px-3 py-2 text-xs font-medium transition-all ${
-                    collection.occasion === o
-                      ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-soft'
-                      : 'border-navy-50 bg-white text-charcoal-600 hover:border-gold-300 hover:bg-ivory-50'
-                  }`}
-                >
-                  {o}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="sm:col-span-2">
-            <MediaPicker
-              value={collection.banner_image}
-              onChange={(url) => setCollection((prev) => ({ ...prev, banner_image: url }))}
-              label="Banner Image (optional)"
-              folder="homepage_banners"
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-xs uppercase tracking-[0.12em] text-charcoal-600">Description (optional)</label>
-            <textarea
-              rows={2}
-              value={collection.description}
-              onChange={(e) => setCollection((prev) => ({ ...prev, description: e.target.value }))}
-              className="input-luxury resize-none"
-              placeholder="A brief description of this collection..."
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {occasionOptions.map((o) => {
+            const selected = occasions.includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                onClick={() => toggleOccasion(o)}
+                className={`flex items-center justify-between rounded-luxury border px-5 py-4 text-sm font-medium transition-all ${
+                  selected
+                    ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-soft'
+                    : 'border-navy-50 bg-white text-charcoal-600 hover:border-gold-300 hover:bg-ivory-50'
+                }`}
+              >
+                {o}
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all ${
+                  selected ? 'border-gold-500 bg-gold-500 text-navy-900' : 'border-navy-100'
+                }`}>
+                  {selected && <Check size={12} strokeWidth={3} />}
+                </span>
+              </button>
+            );
+          })}
         </div>
-
-        {/* Collection-level defaults — auto-apply to every product */}
-        <div className="mt-6 overflow-hidden rounded-luxury border border-gold-200 bg-gold-50/30">
-          <button
-            onClick={() => setDefaultsExpanded(!defaultsExpanded)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gold-50/50"
-          >
-            <span className="flex items-center gap-2 text-sm font-medium text-gold-900">
-              <Settings2 size={15} /> Collection Defaults
-              <span className="text-[10px] font-light text-gold-700">— auto-applied to every product</span>
-            </span>
-            <span className="text-xs font-light text-gold-700">{defaultsExpanded ? 'Collapse' : 'Expand'}</span>
-          </button>
-          {defaultsExpanded && (
-            <div className="border-t border-gold-100 p-4">
-              <p className="mb-3 text-xs font-light text-charcoal-500">Set these once and every product inherits them. Any per-product value overrides the default.</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Fabric</label>
-                  <select
-                    value={collection.defaults.fabric_main}
-                    onChange={(e) => updateDefaults({ fabric_main: e.target.value })}
-                    className="input-luxury !py-2 text-sm appearance-none"
-                  >
-                    <option value="">None</option>
-                    {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Work</label>
-                  <select
-                    value={collection.defaults.work_type}
-                    onChange={(e) => updateDefaults({ work_type: e.target.value })}
-                    className="input-luxury !py-2 text-sm appearance-none"
-                  >
-                    {workTypeOptions.map((w) => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Product Type</label>
-                  <select
-                    value={collection.defaults.product_type}
-                    onChange={(e) => updateDefaults({ product_type: e.target.value })}
-                    className="input-luxury !py-2 text-sm appearance-none"
-                  >
-                    <option value="">None</option>
-                    {productTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation</label>
-                  <select
-                    value={collection.defaults.customisation_level}
-                    onChange={(e) => updateDefaults({ customisation_level: e.target.value })}
-                    className="input-luxury !py-2 text-sm appearance-none"
-                  >
-                    {customisationLevelOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-3 grid gap-3">
-                <div>
-                  <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">Description</label>
-                  <textarea
-                    rows={2}
-                    value={collection.defaults.description}
-                    onChange={(e) => updateDefaults({ description: e.target.value })}
-                    className="input-luxury resize-none text-sm"
-                    placeholder="Applied to every product..."
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Components</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {componentOptions.map((c) => (
-                      <button key={c} type="button" onClick={() => toggleDefaultsArray('components', c)}
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.components.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                        {collection.defaults.components.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Accessories</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {accessoryOptions.map((a) => (
-                      <button key={a} type="button" onClick={() => toggleDefaultsArray('accessories', a)}
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.accessories.includes(a) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                        {collection.defaults.accessories.includes(a) && <Check size={10} className="mr-0.5 inline" />}{a}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[10px] uppercase tracking-wide text-charcoal-500">Customisation Options</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {customisationOptionList.map((c) => (
-                      <button key={c} type="button" onClick={() => toggleDefaultsArray('customisation_options', c)}
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${collection.defaults.customisation_options.includes(c) ? 'border-gold-500 bg-gold-50 text-gold-900' : 'border-navy-50 bg-white text-charcoal-500 hover:border-gold-300'}`}>
-                        {collection.defaults.customisation_options.includes(c) && <Check size={10} className="mr-0.5 inline" />}{c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Title</label>
-                    <input type="text" value={collection.defaults.seo_title} onChange={(e) => updateDefaults({ seo_title: e.target.value })} className="input-luxury !py-2 text-sm" placeholder="Applied to every product..." />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] uppercase tracking-wide text-charcoal-500">SEO Description</label>
-                    <input type="text" value={collection.defaults.seo_description} onChange={(e) => updateDefaults({ seo_description: e.target.value })} className="input-luxury !py-2 text-sm" placeholder="Applied to every product..." />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {validationErrors.occasions && <p className="mt-2 text-xs text-red-500">{validationErrors.occasions}</p>}
       </section>
 
       {/* STEP 2 — QUICK PRODUCT UPLOAD */}
@@ -594,7 +499,7 @@ export function AdminQuickCollection() {
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy-900 text-xs font-medium text-ivory-100">2</span>
-            <h2 className="text-lg font-serif font-medium text-navy-900">Quick Product Upload</h2>
+            <h2 className="text-lg font-serif font-medium text-navy-900">Product Upload</h2>
           </div>
           {products.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -636,7 +541,7 @@ export function AdminQuickCollection() {
             <Upload size={22} strokeWidth={1.5} className={uploading ? 'animate-pulse' : ''} />
           </div>
           <p className="mt-3 text-sm font-medium text-navy-900">{uploading ? 'Uploading images...' : 'Drag & drop or click to upload'}</p>
-          <p className="mt-1 text-xs font-light text-charcoal-400">Select 20–100 images at once — one product card is created per image</p>
+          <p className="mt-1 text-xs font-light text-charcoal-400">Select multiple images — one product card is created per image</p>
         </div>
 
         {validationErrors.products && products.length === 0 && (
@@ -646,7 +551,7 @@ export function AdminQuickCollection() {
         {/* Product cards grid */}
         {products.length > 0 && (
           <>
-            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Only Design Number is required — everything else inherits from collection defaults.</p>
+            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Product Code is required. Use "Add More Details" to open the full product editor.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((p, i) => (
                 <QuickProductCard
@@ -660,8 +565,7 @@ export function AdminQuickCollection() {
                   onDuplicate={duplicateProduct}
                   onReplaceImage={handleReplaceImage}
                   onReplaceImageUrl={(id, url) => updateProduct(id, { imageUrl: url })}
-                  onToggleExpand={toggleExpand}
-                  onToggleArray={toggleArray}
+                  onAddMoreDetails={handleAddMoreDetails}
                   onDragStart={handleDragStart}
                   onDragEnter={handleDragEnter}
                   onDragEnd={handleDragEnd}
