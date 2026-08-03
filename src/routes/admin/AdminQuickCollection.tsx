@@ -10,6 +10,7 @@ import { useToast } from '@/context/ToastContext';
 import { QuickProductCard } from './QuickProductCard';
 import {
   type QuickProduct, occasionOptions, makeProduct, buildProductData,
+  safeTrim, extractErrorMessage,
 } from './quick-collection-types';
 
 const AUTOSAVE_KEY = 'quick-collection-draft';
@@ -180,10 +181,11 @@ export function AdminQuickCollection() {
     if (products.length === 0) errs.products = 'Upload at least one product image';
     const seenCodes = new Set<string>();
     products.forEach((p) => {
-      if (!p.code.trim()) errs[`code-${p.id}`] = 'Required';
-      else if (seenCodes.has(p.code.trim().toLowerCase())) errs[`code-${p.id}`] = 'Duplicate';
-      else seenCodes.add(p.code.trim().toLowerCase());
-      if (!p.product_type.trim()) errs[`type-${p.id}`] = 'Required';
+      const code = safeTrim(p.code);
+      if (!code) errs[`code-${p.id}`] = 'Required';
+      else if (seenCodes.has(code.toLowerCase())) errs[`code-${p.id}`] = 'Duplicate';
+      else seenCodes.add(code.toLowerCase());
+      if (!safeTrim(p.product_type)) errs[`type-${p.id}`] = 'Required';
     });
     return errs;
   }, [occasions, products]);
@@ -191,7 +193,7 @@ export function AdminQuickCollection() {
   const isValid = Object.keys(validationErrors).length === 0;
 
   const completedCount = useMemo(
-    () => products.filter((p) => p.code.trim() && p.product_type.trim()).length, [products],
+    () => products.filter((p) => safeTrim(p.code) && safeTrim(p.product_type)).length, [products],
   );
   const remainingCount = products.length - completedCount;
 
@@ -210,10 +212,10 @@ export function AdminQuickCollection() {
         .from('products').insert(productData).select('id').maybeSingle();
       if (prodErr) throw prodErr;
       productId = newProd?.id;
-      if (!productId) throw new Error(`Failed to create product ${index + 1}`);
+      if (!productId) throw new Error(`Database returned no product id for product ${index + 1}`);
 
       const { error: imgErr } = await supabase.from('product_images').insert({
-        product_id: productId, url: p.imageUrl, alt: p.name.trim() || p.code.trim(),
+        product_id: productId, url: p.imageUrl, alt: safeTrim(p.name) || safeTrim(p.code),
         sort_order: 0, view_type: 'hero',
       });
       if (imgErr) throw imgErr;
@@ -240,8 +242,7 @@ export function AdminQuickCollection() {
       saveDraft(occasions, products);
       notify(`${products.length} products saved as draft.`, 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      notify(`Save Draft failed: ${msg}`, 'error');
+      notify(`Save Draft failed: ${extractErrorMessage(err)}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -266,8 +267,7 @@ export function AdminQuickCollection() {
       notify(`${products.length} products published.`, 'success');
       navigate('/admin/products');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      notify(`Publish All failed: ${msg}`, 'error');
+      notify(`Publish All failed: ${extractErrorMessage(err)}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -277,8 +277,8 @@ export function AdminQuickCollection() {
   const handleSaveInQuick = useCallback(async (id: string) => {
     const p = products.find((item) => item.id === id);
     if (!p) return;
-    if (!p.code.trim()) { notify('Please fill in the product code first.', 'error'); return; }
-    if (!p.product_type.trim()) { notify('Please fill in the product type first.', 'error'); return; }
+    if (!safeTrim(p.code)) { notify('Please fill in the product code first.', 'error'); return; }
+    if (!safeTrim(p.product_type)) { notify('Please fill in the product type first.', 'error'); return; }
 
     setSavingId(id);
     try {
@@ -289,8 +289,7 @@ export function AdminQuickCollection() {
       }
       setSaveSuccessId(id);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      notify(`Save in Quick Collection failed: ${msg}`, 'error');
+      notify(`Save in Quick Collection failed: ${extractErrorMessage(err)}`, 'error');
     } finally {
       setSavingId(null);
     }
@@ -304,8 +303,8 @@ export function AdminQuickCollection() {
   const handleAddMoreDetails = useCallback(async (id: string) => {
     const p = products.find((item) => item.id === id);
     if (!p) return;
-    if (!p.code.trim()) { notify('Please fill in the product code first.', 'error'); return; }
-    if (!p.product_type.trim()) { notify('Please fill in the product type first.', 'error'); return; }
+    if (!safeTrim(p.code)) { notify('Please fill in the product code first.', 'error'); return; }
+    if (!safeTrim(p.product_type)) { notify('Please fill in the product type first.', 'error'); return; }
 
     if (p.savedProductId) {
       navigate(`/admin/products/${p.savedProductId}`);
@@ -316,13 +315,12 @@ export function AdminQuickCollection() {
     try {
       const index = products.findIndex((item) => item.id === id);
       const productId = await saveOneProduct(p, index, false, 'signature');
-      if (!productId) throw new Error('Failed to create product');
+      if (!productId) throw new Error('Database returned no product id');
       setProducts((prev) => prev.map((item) => item.id === id ? { ...item, savedProductId: productId } : item));
       notify('Product saved to Quick Collection draft. Opening full editor...', 'success');
       navigate(`/admin/products/${productId}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      notify(`Failed to create product: ${msg}`, 'error');
+      notify(`Failed to create product: ${extractErrorMessage(err)}`, 'error');
     } finally {
       setSavingId(null);
     }

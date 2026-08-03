@@ -55,12 +55,13 @@ export function buildProductData(
   status: string,
   isUpdate: boolean = false,
 ): Record<string, unknown> {
-  const title = product.name.trim() || product.code.trim();
-  const priceVal = product.price.trim() ? parseFloat(product.price.trim()) : null;
+  const title = safeTrim(product.name) || safeTrim(product.code);
+  const priceStr = safeTrim(product.price);
+  const priceVal = priceStr ? parseFloat(priceStr) : null;
 
   const data: Record<string, unknown> = {
     title,
-    code: product.code.trim(),
+    code: safeTrim(product.code),
     excerpt: '',
     description: null,
     category_id: null,
@@ -124,6 +125,22 @@ export function makeProduct(imageUrl: string, code: string): QuickProduct {
     work_type: '',
     savedProductId: null,
   };
+}
+
+export function safeTrim(value: string | undefined | null): string {
+  return (value ?? '').trim();
+}
+
+export function extractErrorMessage(err: unknown): string {
+  if (!err) return 'No error details available';
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    if (typeof e.message === 'string' && e.message) return e.message;
+    if (typeof e.error === 'string' && e.error) return e.error;
+    if (typeof e.details === 'string' && e.details) return e.details;
+  }
+  if (typeof err === 'string' && err) return err;
+  try { return JSON.stringify(err); } catch { return 'No error details available'; }
 }
 
 export { fabricOptions, colorSwatches };
