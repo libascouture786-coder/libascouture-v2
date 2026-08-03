@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload, Loader2, Save, Plus, Check, Layers, AlertCircle,
+  Upload, Loader2, Save, Plus, Check, Layers, AlertCircle, FileEdit,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
@@ -54,6 +54,7 @@ export function AdminQuickCollection() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
@@ -191,6 +192,7 @@ export function AdminQuickCollection() {
       if (!p.code.trim()) errs[`code-${p.id}`] = 'Required';
       else if (seenCodes.has(p.code.trim().toLowerCase())) errs[`code-${p.id}`] = 'Duplicate';
       else seenCodes.add(p.code.trim().toLowerCase());
+      if (!p.product_type.trim()) errs[`type-${p.id}`] = 'Required';
     });
     return errs;
   }, [occasions, products]);
@@ -198,13 +200,16 @@ export function AdminQuickCollection() {
   const isValid = Object.keys(validationErrors).length === 0;
 
   /* ── Counts ─────────────────────────────────────────────────────── */
-  const completedCount = useMemo(() => products.filter((p) => p.code.trim()).length, [products]);
+  const completedCount = useMemo(
+    () => products.filter((p) => p.code.trim() && p.product_type.trim()).length,
+    [products],
+  );
   const remainingCount = products.length - completedCount;
 
-  /* ── Save: create each product in the products table ────────────── */
-  const handleSave = async (publish: boolean) => {
+  /* ── Save All Draft: persist all products as inactive ───────────── */
+  const handleSaveAllDraft = async () => {
     if (!isValid) {
-      notify('Please select at least one occasion and fill in design number for every product.', 'error');
+      notify('Please fill in product code and product type for every product.', 'error');
       return;
     }
     setSaving(true);
@@ -227,7 +232,7 @@ export function AdminQuickCollection() {
           price: priceVal,
           price_on_request: !priceVal,
           price_type: priceVal ? 'fixed' : 'price_on_request',
-          status: publish ? 'made_on_order' : 'signature',
+          status: 'signature',
           work_type: p.work_type || 'Hand Work',
           occasion: occasions[0] ?? null,
           occasions,
@@ -236,6 +241,7 @@ export function AdminQuickCollection() {
           color_main: p.color || null,
           fabric: p.fabric || null,
           fabric_main: p.fabric || null,
+          product_type: p.product_type || null,
           embroidery: [],
           includes: [],
           accessories: [],
@@ -250,7 +256,7 @@ export function AdminQuickCollection() {
           priority: 'Medium',
           related_product_ids: [],
           image_keys: [],
-          is_active: publish,
+          is_active: false,
           is_featured: false,
           is_new: true,
           is_best_seller: false,
@@ -262,45 +268,50 @@ export function AdminQuickCollection() {
           image_alt_text: title,
         };
 
-        const { data: newProd, error: prodErr } = await supabase
-          .from('products')
-          .insert(productData)
-          .select('id')
-          .maybeSingle();
-        if (prodErr) throw prodErr;
-        const productId = newProd?.id;
-        if (!productId) throw new Error(`Failed to create product ${i + 1}`);
+        let productId = p.savedProductId;
 
-        const { error: imgErr } = await supabase.from('product_images').insert({
-          product_id: productId,
-          url: p.imageUrl,
-          alt: title,
-          sort_order: 0,
-          view_type: 'hero',
-        });
-        if (imgErr) throw imgErr;
+        if (productId) {
+          const { error: updErr } = await supabase
+            .from('products')
+            .update(productData)
+            .eq('id', productId);
+          if (updErr) throw updErr;
+        } else {
+          const { data: newProd, error: prodErr } = await supabase
+            .from('products')
+            .insert(productData)
+            .select('id')
+            .maybeSingle();
+          if (prodErr) throw prodErr;
+          productId = newProd?.id;
+          if (!productId) throw new Error(`Failed to create product ${i + 1}`);
 
-        setProducts((prev) => prev.map((item) =>
-          item.id === p.id ? { ...item, savedProductId: productId } : item
-        ));
+          const { error: imgErr } = await supabase.from('product_images').insert({
+            product_id: productId,
+            url: p.imageUrl,
+            alt: title,
+            sort_order: 0,
+            view_type: 'hero',
+          });
+          if (imgErr) throw imgErr;
+
+          setProducts((prev) => prev.map((item) =>
+            item.id === p.id ? { ...item, savedProductId: productId } : item
+          ));
+        }
+
         setSaveProgress({ done: i + 1, total: products.length });
       }
 
       await logActivity(
-        'products_created',
-        `Quick-created ${products.length} products for ${occasions.join(', ')}`,
+        'products_saved_draft',
+        `Quick-saved ${products.length} products as draft for ${occasions.join(', ')}`,
         'product',
         undefined,
       );
 
-      clearDraft();
-      notify(
-        publish
-          ? `${products.length} products published.`
-          : `${products.length} products saved as draft.`,
-        'success',
-      );
-      navigate('/admin/products');
+      saveDraft(occasions, products);
+      notify(`${products.length} products saved as draft.`, 'success');
     } catch {
       notify('Failed to save products. Please try again.', 'error');
     } finally {
@@ -308,13 +319,221 @@ export function AdminQuickCollection() {
     }
   };
 
-  /* ── Add More Details: save product then open full form ─────────── */
+  /* ── Publish All: persist all products as active ────────────────── */
+  const handlePublishAll = async () => {
+    if (!isValid) {
+      notify('Please fill in product code and product type for every product.', 'error');
+      return;
+    }
+    setSaving(true);
+    setSaveProgress({ done: 0, total: products.length });
+    try {
+      for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        const title = p.name.trim() || p.code.trim();
+        const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${i + 1}`;
+        const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
+
+        const productData = {
+          slug: productSlug,
+          title,
+          code: p.code.trim(),
+          excerpt: '',
+          description: null,
+          category_id: null,
+          category_slug: 'bridal',
+          price: priceVal,
+          price_on_request: !priceVal,
+          price_type: priceVal ? 'fixed' : 'price_on_request',
+          status: 'made_on_order',
+          work_type: p.work_type || 'Hand Work',
+          occasion: occasions[0] ?? null,
+          occasions,
+          colors: p.color ? [p.color] : [],
+          color: p.color || null,
+          color_main: p.color || null,
+          fabric: p.fabric || null,
+          fabric_main: p.fabric || null,
+          product_type: p.product_type || null,
+          embroidery: [],
+          includes: [],
+          accessories: [],
+          hand_work_details: [],
+          customisation_options: [],
+          customisation_level: 'Fully Customisable',
+          customisable: true,
+          highlights: [],
+          care_instructions: null,
+          website_placement: [],
+          visibility: 'website',
+          priority: 'Medium',
+          related_product_ids: [],
+          image_keys: [],
+          is_active: true,
+          is_featured: false,
+          is_new: true,
+          is_best_seller: false,
+          sort_order: i,
+          thumbnail_index: 0,
+          video_url: null,
+          seo_title: title,
+          seo_description: null,
+          image_alt_text: title,
+        };
+
+        let productId = p.savedProductId;
+
+        if (productId) {
+          const { error: updErr } = await supabase
+            .from('products')
+            .update(productData)
+            .eq('id', productId);
+          if (updErr) throw updErr;
+        } else {
+          const { data: newProd, error: prodErr } = await supabase
+            .from('products')
+            .insert(productData)
+            .select('id')
+            .maybeSingle();
+          if (prodErr) throw prodErr;
+          productId = newProd?.id;
+          if (!productId) throw new Error(`Failed to create product ${i + 1}`);
+
+          const { error: imgErr } = await supabase.from('product_images').insert({
+            product_id: productId,
+            url: p.imageUrl,
+            alt: title,
+            sort_order: 0,
+            view_type: 'hero',
+          });
+          if (imgErr) throw imgErr;
+
+          setProducts((prev) => prev.map((item) =>
+            item.id === p.id ? { ...item, savedProductId: productId } : item
+          ));
+        }
+
+        setSaveProgress({ done: i + 1, total: products.length });
+      }
+
+      await logActivity(
+        'products_published',
+        `Quick-published ${products.length} products for ${occasions.join(', ')}`,
+        'product',
+        undefined,
+      );
+
+      clearDraft();
+      notify(`${products.length} products published.`, 'success');
+      navigate('/admin/products');
+    } catch {
+      notify('Failed to publish products. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ── Save in Quick Collection: persist single product as inactive draft ── */
+  const handleSaveInQuick = useCallback(async (id: string) => {
+    const p = products.find((item) => item.id === id);
+    if (!p) return;
+
+    if (!p.code.trim()) { notify('Please fill in the product code first.', 'error'); return; }
+    if (!p.product_type.trim()) { notify('Please fill in the product type first.', 'error'); return; }
+
+    setSavingId(id);
+    try {
+      const title = p.name.trim() || p.code.trim();
+      const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
+
+      const productData = {
+        slug: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`,
+        title,
+        code: p.code.trim(),
+        excerpt: '',
+        description: null,
+        category_id: null,
+        category_slug: 'bridal',
+        price: priceVal,
+        price_on_request: !priceVal,
+        price_type: priceVal ? 'fixed' : 'price_on_request',
+        status: 'signature',
+        work_type: p.work_type || 'Hand Work',
+        occasion: occasions[0] ?? null,
+        occasions,
+        colors: p.color ? [p.color] : [],
+        color: p.color || null,
+        color_main: p.color || null,
+        fabric: p.fabric || null,
+        fabric_main: p.fabric || null,
+        product_type: p.product_type || null,
+        embroidery: [],
+        includes: [],
+        accessories: [],
+        hand_work_details: [],
+        customisation_options: [],
+        customisation_level: 'Fully Customisable',
+        customisable: true,
+        highlights: [],
+        care_instructions: null,
+        website_placement: [],
+        visibility: 'website',
+        priority: 'Medium',
+        related_product_ids: [],
+        image_keys: [],
+        is_active: false,
+        is_featured: false,
+        is_new: true,
+        is_best_seller: false,
+        sort_order: 0,
+        thumbnail_index: 0,
+        video_url: null,
+        seo_title: title,
+        seo_description: null,
+        image_alt_text: title,
+      };
+
+      let productId = p.savedProductId;
+
+      if (productId) {
+        const { error: updErr } = await supabase.from('products').update(productData).eq('id', productId);
+        if (updErr) throw updErr;
+      } else {
+        const { data: newProd, error: prodErr } = await supabase
+          .from('products').insert(productData).select('id').maybeSingle();
+        if (prodErr) throw prodErr;
+        productId = newProd?.id;
+        if (!productId) throw new Error('Failed to create product');
+
+        const { error: imgErr } = await supabase.from('product_images').insert({
+          product_id: productId, url: p.imageUrl, alt: title, sort_order: 0, view_type: 'hero',
+        });
+        if (imgErr) throw imgErr;
+
+        setProducts((prev) => prev.map((item) =>
+          item.id === id ? { ...item, savedProductId: productId } : item
+        ));
+      }
+
+      notify('Product saved to Quick Collection draft.', 'success');
+    } catch {
+      notify('Failed to save product. Please try again.', 'error');
+    } finally {
+      setSavingId(null);
+    }
+  }, [products, occasions, notify]);
+
+  /* ── Add More Details: save product to DB (inactive) then open full form ─── */
   const handleAddMoreDetails = useCallback(async (id: string) => {
     const p = products.find((item) => item.id === id);
     if (!p) return;
 
     if (!p.code.trim()) {
       notify('Please fill in the product code first.', 'error');
+      return;
+    }
+    if (!p.product_type.trim()) {
+      notify('Please fill in the product type first.', 'error');
       return;
     }
 
@@ -348,6 +567,7 @@ export function AdminQuickCollection() {
         color_main: p.color || null,
         fabric: p.fabric || null,
         fabric_main: p.fabric || null,
+        product_type: p.product_type || null,
         embroidery: [],
         includes: [],
         accessories: [],
@@ -396,6 +616,7 @@ export function AdminQuickCollection() {
         item.id === id ? { ...item, savedProductId: productId } : item
       ));
 
+      notify('Product saved to Quick Collection draft. Opening full editor...', 'success');
       navigate(`/admin/products/${productId}`);
     } catch {
       notify('Failed to create product for editing.', 'error');
@@ -422,18 +643,18 @@ export function AdminQuickCollection() {
             </span>
           )}
           <button
-            onClick={() => handleSave(false)}
+            onClick={handleSaveAllDraft}
             disabled={saving || products.length === 0}
             className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200 disabled:opacity-50"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save All Draft
           </button>
           <button
-            onClick={() => handleSave(true)}
+            onClick={handlePublishAll}
             disabled={saving || products.length === 0}
             className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Publish
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Publish All
           </button>
         </div>
       </div>
@@ -450,7 +671,7 @@ export function AdminQuickCollection() {
       {saving && saveProgress.total > 0 && (
         <div className="mb-6 rounded-luxury border border-gold-100 bg-gold-50/50 p-4">
           <div className="flex items-center justify-between text-xs font-medium text-gold-800">
-            <span>Creating products...</span>
+            <span>Saving products...</span>
             <span>{saveProgress.done} / {saveProgress.total}</span>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gold-100">
@@ -551,7 +772,9 @@ export function AdminQuickCollection() {
         {/* Product cards grid */}
         {products.length > 0 && (
           <>
-            <p className="mb-3 text-xs font-light text-charcoal-400">Drag cards to reorder. Product Code is required. Use "Add More Details" to open the full product editor.</p>
+            <p className="mb-3 flex items-center gap-1.5 text-xs font-light text-charcoal-400">
+              <FileEdit size={12} /> Drag cards to reorder. Product Code and Product Type are required. Use "Add More Details" to open the full product editor — the product is saved back to this draft without publishing.
+            </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((p, i) => (
                 <QuickProductCard
@@ -559,6 +782,7 @@ export function AdminQuickCollection() {
                   product={p}
                   index={i}
                   codeErr={validationErrors[`code-${p.id}`]}
+                  typeErr={validationErrors[`type-${p.id}`]}
                   isDragging={dragOverId === p.id}
                   onUpdate={updateProduct}
                   onRemove={removeProduct}
@@ -566,6 +790,8 @@ export function AdminQuickCollection() {
                   onReplaceImage={handleReplaceImage}
                   onReplaceImageUrl={(id, url) => updateProduct(id, { imageUrl: url })}
                   onAddMoreDetails={handleAddMoreDetails}
+                  onSaveInQuick={handleSaveInQuick}
+                  savingId={savingId}
                   onDragStart={handleDragStart}
                   onDragEnter={handleDragEnter}
                   onDragEnd={handleDragEnd}
