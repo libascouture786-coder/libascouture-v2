@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload, Loader2, Save, Plus, Check, Layers, AlertCircle, FileEdit,
+  Upload, Loader2, Save, Plus, Check, Layers, AlertCircle, FileEdit, X,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
@@ -9,7 +9,7 @@ import { logActivity } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import { QuickProductCard } from './QuickProductCard';
 import {
-  type QuickProduct, occasionOptions, makeProduct,
+  type QuickProduct, occasionOptions, makeProduct, buildProductData,
 } from './quick-collection-types';
 
 const AUTOSAVE_KEY = 'quick-collection-draft';
@@ -55,9 +55,11 @@ export function AdminQuickCollection() {
   const [dragActive, setDragActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveSuccessId, setSaveSuccessId] = useState<string | null>(null);
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragIdRef = useRef<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -83,12 +85,9 @@ export function AdminQuickCollection() {
     return () => clearTimeout(t);
   }, [occasions, products]);
 
-  /* ── Occasion toggle ────────────────────────────────────────────── */
   const toggleOccasion = (occasion: string) => {
     setOccasions((prev) =>
-      prev.includes(occasion)
-        ? prev.filter((o) => o !== occasion)
-        : [...prev, occasion]
+      prev.includes(occasion) ? prev.filter((o) => o !== occasion) : [...prev, occasion]
     );
   };
 
@@ -101,9 +100,7 @@ export function AdminQuickCollection() {
       const uploadPromises = imageFiles.map(async (file) => {
         const ext = file.name.split('.').pop() ?? 'jpg';
         const path = `${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage
-          .from('product-images')
-          .upload(path, file, { cacheControl: '3600', upsert: false });
+        const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', upsert: false });
         if (error) throw error;
         const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
         return pub.publicUrl;
@@ -113,8 +110,7 @@ export function AdminQuickCollection() {
         const startIdx = prev.length;
         const newProducts = uploaded.map((url, i) => {
           const n = startIdx + i + 1;
-          const code = `LC-${String(n).padStart(3, '0')}`;
-          return makeProduct(url, code);
+          return makeProduct(url, `LC-${String(n).padStart(3, '0')}`);
         });
         return [...prev, ...newProducts];
       });
@@ -126,7 +122,6 @@ export function AdminQuickCollection() {
     }
   }, [notify]);
 
-  /* ── Replace image ──────────────────────────────────────────────── */
   const handleReplaceImage = useCallback(async (id: string, file: File) => {
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `${crypto.randomUUID()}.${ext}`;
@@ -136,7 +131,6 @@ export function AdminQuickCollection() {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, imageUrl: pub.publicUrl } : p)));
   }, [notify]);
 
-  /* ── Product card operations ───────────────────────────────────── */
   const updateProduct = useCallback((id: string, patch: Partial<QuickProduct>) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }, []);
@@ -150,11 +144,8 @@ export function AdminQuickCollection() {
       const idx = prev.findIndex((p) => p.id === id);
       if (idx === -1) return prev;
       const copy: QuickProduct = {
-        ...prev[idx],
-        id: crypto.randomUUID(),
-        name: `${prev[idx].name} (Copy)`,
-        code: '',
-        savedProductId: null,
+        ...prev[idx], id: crypto.randomUUID(),
+        name: `${prev[idx].name} (Copy)`, code: '', savedProductId: null,
       };
       const next = [...prev];
       next.splice(idx + 1, 0, copy);
@@ -199,429 +190,143 @@ export function AdminQuickCollection() {
 
   const isValid = Object.keys(validationErrors).length === 0;
 
-  /* ── Counts ─────────────────────────────────────────────────────── */
   const completedCount = useMemo(
-    () => products.filter((p) => p.code.trim() && p.product_type.trim()).length,
-    [products],
+    () => products.filter((p) => p.code.trim() && p.product_type.trim()).length, [products],
   );
   const remainingCount = products.length - completedCount;
 
-  /* ── Save All Draft: persist all products as inactive ───────────── */
-  const handleSaveAllDraft = async () => {
-    if (!isValid) {
-      notify('Please fill in product code and product type for every product.', 'error');
-      return;
+  /* ── Shared save logic for a single product ─────────────────────── */
+  const saveOneProduct = useCallback(async (p: QuickProduct, index: number, isActive: boolean, status: string): Promise<string | null> => {
+    const isUpdate = Boolean(p.savedProductId);
+    const productData = buildProductData(p, occasions, isActive, index, status, isUpdate);
+
+    let productId = p.savedProductId;
+
+    if (productId) {
+      const { error: updErr } = await supabase.from('products').update(productData).eq('id', productId);
+      if (updErr) throw updErr;
+    } else {
+      const { data: newProd, error: prodErr } = await supabase
+        .from('products').insert(productData).select('id').maybeSingle();
+      if (prodErr) throw prodErr;
+      productId = newProd?.id;
+      if (!productId) throw new Error(`Failed to create product ${index + 1}`);
+
+      const { error: imgErr } = await supabase.from('product_images').insert({
+        product_id: productId, url: p.imageUrl, alt: p.name.trim() || p.code.trim(),
+        sort_order: 0, view_type: 'hero',
+      });
+      if (imgErr) throw imgErr;
     }
+
+    return productId;
+  }, [occasions]);
+
+  /* ── Save All Draft ─────────────────────────────────────────────── */
+  const handleSaveAllDraft = async () => {
+    if (!isValid) { notify('Please fill in product code and product type for every product.', 'error'); return; }
     setSaving(true);
     setSaveProgress({ done: 0, total: products.length });
     try {
       for (let i = 0; i < products.length; i++) {
         const p = products[i];
-        const title = p.name.trim() || p.code.trim();
-        const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${i + 1}`;
-        const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
-
-        const productData = {
-          slug: productSlug,
-          title,
-          code: p.code.trim(),
-          excerpt: '',
-          description: null,
-          category_id: null,
-          category_slug: 'bridal',
-          price: priceVal,
-          price_on_request: !priceVal,
-          price_type: priceVal ? 'fixed' : 'price_on_request',
-          status: 'signature',
-          work_type: p.work_type || 'Hand Work',
-          occasion: occasions[0] ?? null,
-          occasions,
-          colors: p.color ? [p.color] : [],
-          color: p.color || null,
-          color_main: p.color || null,
-          fabric: p.fabric || null,
-          fabric_main: p.fabric || null,
-          product_type: p.product_type || null,
-          embroidery: [],
-          includes: [],
-          accessories: [],
-          hand_work_details: [],
-          customisation_options: [],
-          customisation_level: 'Fully Customisable',
-          customisable: true,
-          highlights: [],
-          care_instructions: null,
-          website_placement: [],
-          visibility: 'website',
-          priority: 'Medium',
-          related_product_ids: [],
-          image_keys: [],
-          is_active: false,
-          is_featured: false,
-          is_new: true,
-          is_best_seller: false,
-          sort_order: i,
-          thumbnail_index: 0,
-          video_url: null,
-          seo_title: title,
-          seo_description: null,
-          image_alt_text: title,
-        };
-
-        let productId = p.savedProductId;
-
-        if (productId) {
-          const { error: updErr } = await supabase
-            .from('products')
-            .update(productData)
-            .eq('id', productId);
-          if (updErr) throw updErr;
-        } else {
-          const { data: newProd, error: prodErr } = await supabase
-            .from('products')
-            .insert(productData)
-            .select('id')
-            .maybeSingle();
-          if (prodErr) throw prodErr;
-          productId = newProd?.id;
-          if (!productId) throw new Error(`Failed to create product ${i + 1}`);
-
-          const { error: imgErr } = await supabase.from('product_images').insert({
-            product_id: productId,
-            url: p.imageUrl,
-            alt: title,
-            sort_order: 0,
-            view_type: 'hero',
-          });
-          if (imgErr) throw imgErr;
-
-          setProducts((prev) => prev.map((item) =>
-            item.id === p.id ? { ...item, savedProductId: productId } : item
-          ));
+        const productId = await saveOneProduct(p, i, false, 'signature');
+        if (productId && !p.savedProductId) {
+          setProducts((prev) => prev.map((item) => item.id === p.id ? { ...item, savedProductId: productId } : item));
         }
-
         setSaveProgress({ done: i + 1, total: products.length });
       }
-
-      await logActivity(
-        'products_saved_draft',
-        `Quick-saved ${products.length} products as draft for ${occasions.join(', ')}`,
-        'product',
-        undefined,
-      );
-
+      await logActivity('products_saved_draft', `Quick-saved ${products.length} products as draft for ${occasions.join(', ')}`, 'product', undefined);
       saveDraft(occasions, products);
       notify(`${products.length} products saved as draft.`, 'success');
-    } catch {
-      notify('Failed to save products. Please try again.', 'error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      notify(`Save Draft failed: ${msg}`, 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  /* ── Publish All: persist all products as active ────────────────── */
+  /* ── Publish All ─────────────────────────────────────────────────── */
   const handlePublishAll = async () => {
-    if (!isValid) {
-      notify('Please fill in product code and product type for every product.', 'error');
-      return;
-    }
+    if (!isValid) { notify('Please fill in product code and product type for every product.', 'error'); return; }
     setSaving(true);
     setSaveProgress({ done: 0, total: products.length });
     try {
       for (let i = 0; i < products.length; i++) {
         const p = products[i];
-        const title = p.name.trim() || p.code.trim();
-        const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${i + 1}`;
-        const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
-
-        const productData = {
-          slug: productSlug,
-          title,
-          code: p.code.trim(),
-          excerpt: '',
-          description: null,
-          category_id: null,
-          category_slug: 'bridal',
-          price: priceVal,
-          price_on_request: !priceVal,
-          price_type: priceVal ? 'fixed' : 'price_on_request',
-          status: 'made_on_order',
-          work_type: p.work_type || 'Hand Work',
-          occasion: occasions[0] ?? null,
-          occasions,
-          colors: p.color ? [p.color] : [],
-          color: p.color || null,
-          color_main: p.color || null,
-          fabric: p.fabric || null,
-          fabric_main: p.fabric || null,
-          product_type: p.product_type || null,
-          embroidery: [],
-          includes: [],
-          accessories: [],
-          hand_work_details: [],
-          customisation_options: [],
-          customisation_level: 'Fully Customisable',
-          customisable: true,
-          highlights: [],
-          care_instructions: null,
-          website_placement: [],
-          visibility: 'website',
-          priority: 'Medium',
-          related_product_ids: [],
-          image_keys: [],
-          is_active: true,
-          is_featured: false,
-          is_new: true,
-          is_best_seller: false,
-          sort_order: i,
-          thumbnail_index: 0,
-          video_url: null,
-          seo_title: title,
-          seo_description: null,
-          image_alt_text: title,
-        };
-
-        let productId = p.savedProductId;
-
-        if (productId) {
-          const { error: updErr } = await supabase
-            .from('products')
-            .update(productData)
-            .eq('id', productId);
-          if (updErr) throw updErr;
-        } else {
-          const { data: newProd, error: prodErr } = await supabase
-            .from('products')
-            .insert(productData)
-            .select('id')
-            .maybeSingle();
-          if (prodErr) throw prodErr;
-          productId = newProd?.id;
-          if (!productId) throw new Error(`Failed to create product ${i + 1}`);
-
-          const { error: imgErr } = await supabase.from('product_images').insert({
-            product_id: productId,
-            url: p.imageUrl,
-            alt: title,
-            sort_order: 0,
-            view_type: 'hero',
-          });
-          if (imgErr) throw imgErr;
-
-          setProducts((prev) => prev.map((item) =>
-            item.id === p.id ? { ...item, savedProductId: productId } : item
-          ));
+        const productId = await saveOneProduct(p, i, true, 'made_on_order');
+        if (productId && !p.savedProductId) {
+          setProducts((prev) => prev.map((item) => item.id === p.id ? { ...item, savedProductId: productId } : item));
         }
-
         setSaveProgress({ done: i + 1, total: products.length });
       }
-
-      await logActivity(
-        'products_published',
-        `Quick-published ${products.length} products for ${occasions.join(', ')}`,
-        'product',
-        undefined,
-      );
-
+      await logActivity('products_published', `Quick-published ${products.length} products for ${occasions.join(', ')}`, 'product', undefined);
       clearDraft();
       notify(`${products.length} products published.`, 'success');
       navigate('/admin/products');
-    } catch {
-      notify('Failed to publish products. Please try again.', 'error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      notify(`Publish All failed: ${msg}`, 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  /* ── Save in Quick Collection: persist single product as inactive draft ── */
+  /* ── Save in Quick Collection (single product, no publish) ──────── */
   const handleSaveInQuick = useCallback(async (id: string) => {
     const p = products.find((item) => item.id === id);
     if (!p) return;
-
     if (!p.code.trim()) { notify('Please fill in the product code first.', 'error'); return; }
     if (!p.product_type.trim()) { notify('Please fill in the product type first.', 'error'); return; }
 
     setSavingId(id);
     try {
-      const title = p.name.trim() || p.code.trim();
-      const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
-
-      const productData = {
-        slug: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`,
-        title,
-        code: p.code.trim(),
-        excerpt: '',
-        description: null,
-        category_id: null,
-        category_slug: 'bridal',
-        price: priceVal,
-        price_on_request: !priceVal,
-        price_type: priceVal ? 'fixed' : 'price_on_request',
-        status: 'signature',
-        work_type: p.work_type || 'Hand Work',
-        occasion: occasions[0] ?? null,
-        occasions,
-        colors: p.color ? [p.color] : [],
-        color: p.color || null,
-        color_main: p.color || null,
-        fabric: p.fabric || null,
-        fabric_main: p.fabric || null,
-        product_type: p.product_type || null,
-        embroidery: [],
-        includes: [],
-        accessories: [],
-        hand_work_details: [],
-        customisation_options: [],
-        customisation_level: 'Fully Customisable',
-        customisable: true,
-        highlights: [],
-        care_instructions: null,
-        website_placement: [],
-        visibility: 'website',
-        priority: 'Medium',
-        related_product_ids: [],
-        image_keys: [],
-        is_active: false,
-        is_featured: false,
-        is_new: true,
-        is_best_seller: false,
-        sort_order: 0,
-        thumbnail_index: 0,
-        video_url: null,
-        seo_title: title,
-        seo_description: null,
-        image_alt_text: title,
-      };
-
-      let productId = p.savedProductId;
-
-      if (productId) {
-        const { error: updErr } = await supabase.from('products').update(productData).eq('id', productId);
-        if (updErr) throw updErr;
-      } else {
-        const { data: newProd, error: prodErr } = await supabase
-          .from('products').insert(productData).select('id').maybeSingle();
-        if (prodErr) throw prodErr;
-        productId = newProd?.id;
-        if (!productId) throw new Error('Failed to create product');
-
-        const { error: imgErr } = await supabase.from('product_images').insert({
-          product_id: productId, url: p.imageUrl, alt: title, sort_order: 0, view_type: 'hero',
-        });
-        if (imgErr) throw imgErr;
-
-        setProducts((prev) => prev.map((item) =>
-          item.id === id ? { ...item, savedProductId: productId } : item
-        ));
+      const index = products.findIndex((item) => item.id === id);
+      const productId = await saveOneProduct(p, index, false, 'signature');
+      if (productId && !p.savedProductId) {
+        setProducts((prev) => prev.map((item) => item.id === id ? { ...item, savedProductId: productId } : item));
       }
-
-      notify('Product saved to Quick Collection draft.', 'success');
-    } catch {
-      notify('Failed to save product. Please try again.', 'error');
+      setSaveSuccessId(id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      notify(`Save in Quick Collection failed: ${msg}`, 'error');
     } finally {
       setSavingId(null);
     }
-  }, [products, occasions, notify]);
+  }, [products, saveOneProduct, notify]);
 
-  /* ── Add More Details: save product to DB (inactive) then open full form ─── */
+  const dismissSaveSuccess = useCallback((id: string) => {
+    setSaveSuccessId((prev) => (prev === id ? null : prev));
+  }, []);
+
+  /* ── Add More Details ────────────────────────────────────────────── */
   const handleAddMoreDetails = useCallback(async (id: string) => {
     const p = products.find((item) => item.id === id);
     if (!p) return;
+    if (!p.code.trim()) { notify('Please fill in the product code first.', 'error'); return; }
+    if (!p.product_type.trim()) { notify('Please fill in the product type first.', 'error'); return; }
 
-    if (!p.code.trim()) {
-      notify('Please fill in the product code first.', 'error');
-      return;
-    }
-    if (!p.product_type.trim()) {
-      notify('Please fill in the product type first.', 'error');
+    if (p.savedProductId) {
+      navigate(`/admin/products/${p.savedProductId}`);
       return;
     }
 
+    setSavingId(id);
     try {
-      const title = p.name.trim() || p.code.trim();
-      const productSlug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`;
-      const priceVal = p.price.trim() ? parseFloat(p.price.trim()) : null;
-
-      if (p.savedProductId) {
-        navigate(`/admin/products/${p.savedProductId}`);
-        return;
-      }
-
-      const productData = {
-        slug: productSlug,
-        title,
-        code: p.code.trim(),
-        excerpt: '',
-        description: null,
-        category_id: null,
-        category_slug: 'bridal',
-        price: priceVal,
-        price_on_request: !priceVal,
-        price_type: priceVal ? 'fixed' : 'price_on_request',
-        status: 'signature',
-        work_type: p.work_type || 'Hand Work',
-        occasion: occasions[0] ?? null,
-        occasions,
-        colors: p.color ? [p.color] : [],
-        color: p.color || null,
-        color_main: p.color || null,
-        fabric: p.fabric || null,
-        fabric_main: p.fabric || null,
-        product_type: p.product_type || null,
-        embroidery: [],
-        includes: [],
-        accessories: [],
-        hand_work_details: [],
-        customisation_options: [],
-        customisation_level: 'Fully Customisable',
-        customisable: true,
-        highlights: [],
-        care_instructions: null,
-        website_placement: [],
-        visibility: 'website',
-        priority: 'Medium',
-        related_product_ids: [],
-        image_keys: [],
-        is_active: false,
-        is_featured: false,
-        is_new: true,
-        is_best_seller: false,
-        sort_order: 0,
-        thumbnail_index: 0,
-        video_url: null,
-        seo_title: title,
-        seo_description: null,
-        image_alt_text: title,
-      };
-
-      const { data: newProd, error: prodErr } = await supabase
-        .from('products')
-        .insert(productData)
-        .select('id')
-        .maybeSingle();
-      if (prodErr) throw prodErr;
-      const productId = newProd?.id;
+      const index = products.findIndex((item) => item.id === id);
+      const productId = await saveOneProduct(p, index, false, 'signature');
       if (!productId) throw new Error('Failed to create product');
-
-      const { error: imgErr } = await supabase.from('product_images').insert({
-        product_id: productId,
-        url: p.imageUrl,
-        alt: title,
-        sort_order: 0,
-        view_type: 'hero',
-      });
-      if (imgErr) throw imgErr;
-
-      setProducts((prev) => prev.map((item) =>
-        item.id === id ? { ...item, savedProductId: productId } : item
-      ));
-
+      setProducts((prev) => prev.map((item) => item.id === id ? { ...item, savedProductId: productId } : item));
       notify('Product saved to Quick Collection draft. Opening full editor...', 'success');
       navigate(`/admin/products/${productId}`);
-    } catch {
-      notify('Failed to create product for editing.', 'error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      notify(`Failed to create product: ${msg}`, 'error');
+    } finally {
+      setSavingId(null);
     }
-  }, [products, occasions, navigate, notify]);
+  }, [products, saveOneProduct, navigate, notify]);
 
   return (
     <AdminLayout>
@@ -641,6 +346,14 @@ export function AdminQuickCollection() {
             <span className="flex items-center gap-1 text-[10px] font-light text-charcoal-400">
               <Loader2 size={11} className="animate-spin" /> Saving...
             </span>
+          )}
+          {products.length > 0 && (
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200"
+            >
+              <FileEdit size={14} /> Preview All
+            </button>
           )}
           <button
             onClick={handleSaveAllDraft}
@@ -687,25 +400,18 @@ export function AdminQuickCollection() {
           <h2 className="text-lg font-serif font-medium text-navy-900">Select Occasions</h2>
           <span className="text-[10px] font-light text-charcoal-400">— choose all that apply</span>
         </div>
-
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {occasionOptions.map((o) => {
             const selected = occasions.includes(o);
             return (
               <button
-                key={o}
-                type="button"
-                onClick={() => toggleOccasion(o)}
+                key={o} type="button" onClick={() => toggleOccasion(o)}
                 className={`flex items-center justify-between rounded-luxury border px-5 py-4 text-sm font-medium transition-all ${
-                  selected
-                    ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-soft'
-                    : 'border-navy-50 bg-white text-charcoal-600 hover:border-gold-300 hover:bg-ivory-50'
+                  selected ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-soft' : 'border-navy-50 bg-white text-charcoal-600 hover:border-gold-300 hover:bg-ivory-50'
                 }`}
               >
                 {o}
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all ${
-                  selected ? 'border-gold-500 bg-gold-500 text-navy-900' : 'border-navy-100'
-                }`}>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full border transition-all ${selected ? 'border-gold-500 bg-gold-500 text-navy-900' : 'border-navy-100'}`}>
                   {selected && <Check size={12} strokeWidth={3} />}
                 </span>
               </button>
@@ -724,16 +430,10 @@ export function AdminQuickCollection() {
           </div>
           {products.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="flex items-center gap-1.5 font-medium text-navy-700">
-                <Layers size={13} /> {products.length} Uploaded
-              </span>
-              <span className="flex items-center gap-1.5 font-medium text-green-600">
-                <Check size={13} /> {completedCount} Completed
-              </span>
+              <span className="flex items-center gap-1.5 font-medium text-navy-700"><Layers size={13} /> {products.length} Uploaded</span>
+              <span className="flex items-center gap-1.5 font-medium text-green-600"><Check size={13} /> {completedCount} Completed</span>
               {remainingCount > 0 && (
-                <span className="flex items-center gap-1.5 font-medium text-gold-700">
-                  <AlertCircle size={13} /> {remainingCount} Remaining
-                </span>
+                <span className="flex items-center gap-1.5 font-medium text-gold-700"><AlertCircle size={13} /> {remainingCount} Remaining</span>
               )}
             </div>
           )}
@@ -741,8 +441,7 @@ export function AdminQuickCollection() {
 
         {/* Upload dropzone */}
         <div
-          role="button"
-          tabIndex={0}
+          role="button" tabIndex={0}
           onClick={() => fileInputRef.current?.click()}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
           onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
@@ -750,11 +449,7 @@ export function AdminQuickCollection() {
           onDrop={(e) => { e.preventDefault(); setDragActive(false); handleImageUpload(e.dataTransfer.files); }}
           className={`mb-6 cursor-pointer rounded-luxury border-2 border-dashed p-8 text-center transition-colors ${dragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100 hover:border-gold-300 hover:bg-ivory-50'}`}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
+          <input ref={fileInputRef} type="file" accept="image/*" multiple
             onChange={(e) => { if (e.target.files) handleImageUpload(e.target.files); e.target.value = ''; }}
             className="hidden"
           />
@@ -784,6 +479,7 @@ export function AdminQuickCollection() {
                   codeErr={validationErrors[`code-${p.id}`]}
                   typeErr={validationErrors[`type-${p.id}`]}
                   isDragging={dragOverId === p.id}
+                  showSaveSuccess={saveSuccessId === p.id}
                   onUpdate={updateProduct}
                   onRemove={removeProduct}
                   onDuplicate={duplicateProduct}
@@ -791,6 +487,7 @@ export function AdminQuickCollection() {
                   onReplaceImageUrl={(id, url) => updateProduct(id, { imageUrl: url })}
                   onAddMoreDetails={handleAddMoreDetails}
                   onSaveInQuick={handleSaveInQuick}
+                  onDismissSaveSuccess={dismissSaveSuccess}
                   savingId={savingId}
                   onDragStart={handleDragStart}
                   onDragEnter={handleDragEnter}
@@ -798,8 +495,6 @@ export function AdminQuickCollection() {
                 />
               ))}
             </div>
-
-            {/* Add more images button */}
             <button
               onClick={() => fileInputRef.current?.click()}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-luxury border-2 border-dashed border-navy-100 py-4 text-sm font-medium text-charcoal-500 transition-colors hover:border-gold-300 hover:bg-ivory-50 hover:text-navy-900"
@@ -809,6 +504,62 @@ export function AdminQuickCollection() {
           </>
         )}
       </section>
+
+      {/* Preview All modal */}
+      {previewOpen && (
+        <PreviewAllModal products={products} occasions={occasions} onClose={() => setPreviewOpen(false)} />
+      )}
     </AdminLayout>
+  );
+}
+
+/* ── Preview All modal — shows all products before publishing ────── */
+function PreviewAllModal({
+  products, occasions, onClose,
+}: {
+  products: QuickProduct[];
+  occasions: string[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-luxury-lg bg-ivory-50 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-navy-50 bg-white px-6 py-4">
+          <div>
+            <h2 className="text-lg font-serif font-medium text-navy-900">Preview Before Publishing</h2>
+            <p className="mt-0.5 text-xs font-light text-charcoal-500">
+              {products.length} products · Occasions: {occasions.join(', ') || 'None selected'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-charcoal-400 hover:text-navy-900"><X size={20} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {products.map((p) => (
+              <div key={p.id} className="overflow-hidden rounded-luxury border border-navy-50 bg-white">
+                <div className="flex items-center justify-center bg-navy-50" style={{ aspectRatio: '4 / 5' }}>
+                  <img src={p.imageUrl} alt={p.name || p.code} className="max-h-full max-w-full object-contain" loading="lazy" />
+                </div>
+                <div className="space-y-1 p-3">
+                  <p className="text-xs font-medium text-navy-900">{p.name || p.code}</p>
+                  <p className="text-[10px] text-charcoal-400">Code: {p.code}</p>
+                  {p.product_type && <p className="text-[10px] text-charcoal-400">Type: {p.product_type}</p>}
+                  {p.price && <p className="text-[10px] text-charcoal-400">Price: {p.price}</p>}
+                  {p.color && <p className="text-[10px] text-charcoal-400">Color: {p.color}</p>}
+                  {p.fabric && <p className="text-[10px] text-charcoal-400">Fabric: {p.fabric}</p>}
+                  {p.work_type && <p className="text-[10px] text-charcoal-400">Work: {p.work_type}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-navy-50 bg-white px-6 py-4">
+          <button onClick={onClose} className="w-full rounded-luxury bg-navy-900 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800">
+            Close Preview
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

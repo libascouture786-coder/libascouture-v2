@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Trash2, Copy, RefreshCw, GripVertical, ImageIcon, X, Search,
-  Loader2, Check, ChevronRight, ChevronDown, Save,
+  Loader2, Check, ChevronRight, ChevronDown, Save, Maximize2,
 } from 'lucide-react';
 import { colorSwatches, fabricOptions } from '@/config/customisation';
 import { fetchMedia } from '@/lib/admin-api';
@@ -11,12 +11,7 @@ import { workTypeOptions, productTypeOptions } from './quick-collection-types';
 
 /* ── Searchable + typable combobox ───────────────────────────────── */
 function ComboField({
-  label,
-  value,
-  options,
-  onChange,
-  required,
-  placeholder = 'Select or type',
+  label, value, options, onChange, required, placeholder = 'Select or type',
 }: {
   label: string;
   value: string;
@@ -56,25 +51,16 @@ function ComboField({
           type="text"
           value={displayValue}
           onFocus={() => { setOpen(true); setQuery(value); }}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            onChange(e.target.value);
-            setOpen(true);
-          }}
+          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              if (filtered.length > 0) {
-                onChange(filtered[0]);
-                setQuery(filtered[0]);
-              }
+              if (filtered.length > 0) { onChange(filtered[0]); setQuery(filtered[0]); }
               setOpen(false);
             }
             if (e.key === 'Escape') setOpen(false);
           }}
-          onBlur={() => {
-            setTimeout(() => setOpen(false), 100);
-          }}
+          onBlur={() => { setTimeout(() => setOpen(false), 100); }}
           className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
           placeholder={placeholder}
         />
@@ -113,12 +99,65 @@ function ComboField({
   );
 }
 
+/* ── Image preview modal ─────────────────────────────────────────── */
+function ImagePreviewModal({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-navy-950/80 backdrop-blur-sm" />
+      <div className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-luxury-lg bg-navy-950 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-navy-900 transition-colors hover:bg-white">
+          <X size={18} />
+        </button>
+        <img src={url} alt={name} className="max-h-[90vh] w-auto object-contain" />
+      </div>
+    </div>
+  );
+}
+
+/* ── Save success modal ──────────────────────────────────────────── */
+function SaveSuccessModal({
+  onReturn, onContinue,
+}: {
+  onReturn: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-navy-950/50 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm overflow-hidden rounded-luxury-lg bg-white shadow-2xl">
+        <div className="flex flex-col items-center px-6 py-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
+            <Check size={28} strokeWidth={3} className="text-green-600" />
+          </div>
+          <h3 className="mt-4 text-lg font-serif font-medium text-navy-900">Details Saved Successfully</h3>
+          <p className="mt-1 text-xs font-light text-charcoal-500">Your product has been saved to the Quick Collection draft.</p>
+          <div className="mt-6 flex w-full flex-col gap-2">
+            <button
+              onClick={onReturn}
+              className="w-full rounded-luxury bg-navy-900 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800"
+            >
+              Return to Quick Collection
+            </button>
+            <button
+              onClick={onContinue}
+              className="w-full rounded-luxury border border-navy-100 bg-white py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200"
+            >
+              Continue Editing
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   product: QuickProduct;
   index: number;
   codeErr?: string;
   typeErr?: string;
   isDragging: boolean;
+  showSaveSuccess: boolean;
   onUpdate: (id: string, patch: Partial<QuickProduct>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -126,6 +165,7 @@ type Props = {
   onReplaceImageUrl: (id: string, url: string) => void;
   onAddMoreDetails: (id: string) => void;
   onSaveInQuick: (id: string) => void;
+  onDismissSaveSuccess: (id: string) => void;
   savingId: string | null;
   onDragStart: (id: string) => void;
   onDragEnter: (id: string) => void;
@@ -133,12 +173,14 @@ type Props = {
 };
 
 function QuickProductCardBase({
-  product, index, codeErr, typeErr, isDragging,
-  onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onAddMoreDetails, onSaveInQuick, savingId,
+  product, index, codeErr, typeErr, isDragging, showSaveSuccess,
+  onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onAddMoreDetails, onSaveInQuick, onDismissSaveSuccess,
+  savingId,
   onDragStart, onDragEnter, onDragEnd,
 }: Props) {
   const replaceInputId = `replace-img-${product.id}`;
   const [libOpen, setLibOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
     <div
@@ -155,15 +197,23 @@ function QuickProductCardBase({
         <GripVertical size={14} />
       </div>
 
-      <div className="relative aspect-[4/5] overflow-hidden rounded-t-luxury bg-navy-50">
+      {/* Image — preserves original aspect ratio (portrait or landscape) */}
+      <div className="relative flex items-center justify-center overflow-hidden rounded-t-luxury bg-navy-50" style={{ aspectRatio: '4 / 5' }}>
         <img
           src={product.imageUrl}
           alt={product.name || `Product ${index + 1}`}
-          className="h-full w-full object-cover"
+          className="max-h-full max-w-full object-contain"
           loading="lazy"
           draggable={false}
         />
         <div className="absolute inset-x-0 top-0 flex justify-end gap-1 bg-gradient-to-b from-navy-950/40 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-charcoal-600 transition-colors hover:bg-white"
+            title="Preview image"
+          >
+            <Maximize2 size={13} />
+          </button>
           <label
             htmlFor={replaceInputId}
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-white/90 text-charcoal-600 transition-colors hover:bg-white"
@@ -293,6 +343,19 @@ function QuickProductCardBase({
         <QuickImageLibraryModal
           onClose={() => setLibOpen(false)}
           onSelect={(url) => { onReplaceImageUrl(product.id, url); setLibOpen(false); }}
+        />
+      )}
+      {previewOpen && (
+        <ImagePreviewModal
+          url={product.imageUrl}
+          name={product.name || `Product ${index + 1}`}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      {showSaveSuccess && (
+        <SaveSuccessModal
+          onReturn={() => onDismissSaveSuccess(product.id)}
+          onContinue={() => onDismissSaveSuccess(product.id)}
         />
       )}
     </div>
