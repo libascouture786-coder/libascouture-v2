@@ -199,10 +199,25 @@ export function AdminQuickCollection() {
 
   /* ── Shared save logic for a single product ─────────────────────── */
   const saveOneProduct = useCallback(async (p: QuickProduct, index: number, isActive: boolean, status: string): Promise<string | null> => {
-    const isUpdate = Boolean(p.savedProductId);
+    const code = safeTrim(p.code);
+    if (!code) throw new Error(`Product ${index + 1} has no product code`);
+
+    /* Check if a product with this code already exists in the database */
+    let existingId: string | null = p.savedProductId;
+    if (!existingId) {
+      const { data: existing, error: lookupErr } = await supabase
+        .from('products')
+        .select('id')
+        .eq('code', code)
+        .maybeSingle();
+      if (lookupErr) throw lookupErr;
+      if (existing?.id) existingId = existing.id;
+    }
+
+    const isUpdate = Boolean(existingId);
     const productData = buildProductData(p, occasions, isActive, index, status, isUpdate);
 
-    let productId = p.savedProductId;
+    let productId = existingId;
 
     if (productId) {
       const { error: updErr } = await supabase.from('products').update(productData).eq('id', productId);
