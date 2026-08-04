@@ -4,6 +4,7 @@ import {
   Loader2, Grid3x3,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchMedia, insertMedia, deleteMedia } from '@/lib/admin-api';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
@@ -110,6 +111,7 @@ export function AdminMedia() {
           <h1 className="text-h2 font-serif font-medium text-navy-900">Media Library</h1>
           <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} assets</p>
         </div>
+        <PreviewButton to="/" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[200px_1fr]">

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Copy, Loader2, Plus, X, Upload, Check,
   ImageIcon, ChevronLeft, ChevronRight, Shirt, Sparkles,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { MediaPicker } from '@/components/admin/MediaPicker';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { supabase } from '@/lib/supabase';
 import { logActivity, fetchCategories, searchProducts, fetchMedia, insertMedia } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -101,6 +102,8 @@ export function AdminProductForm() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { notify } = useToast();
+  const [searchParams] = useSearchParams();
+  const fromQuick = searchParams.get('from') === 'quick';
 
   const [categories, setCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [activeStep, setActiveStep] = useState<StepKey>('media');
@@ -240,7 +243,22 @@ export function AdminProductForm() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSave = async (publish = false) => {
+  const removeFromQuickCollection = () => {
+    try {
+      const raw = localStorage.getItem('quick-collection-draft');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed.products) return;
+      const filtered = parsed.products.filter((p: { savedProductId?: string | null }) => p.savedProductId !== id);
+      if (filtered.length === 0) {
+        localStorage.removeItem('quick-collection-draft');
+      } else {
+        localStorage.setItem('quick-collection-draft', JSON.stringify({ ...parsed, products: filtered, savedAt: Date.now() }));
+      }
+    } catch { /* storage unavailable */ }
+  };
+
+  const handleSave = async (publish = false, action: 'default' | 'details' | 'publish' = 'default') => {
     if (!validate()) { notify('Please complete required fields (image + design number).', 'error'); return; }
     setSaving(true);
     const title = form.title.trim() || form.code.trim();
@@ -297,9 +315,17 @@ export function AdminProductForm() {
       }
 
       notify(publish ? 'Product published successfully.' : 'Product saved as draft.');
-      navigate('/admin/products');
+      if (action === 'details') {
+        navigate('/admin/quick-collection');
+      } else if (action === 'publish' && fromQuick) {
+        removeFromQuickCollection();
+        navigate('/admin/quick-collection');
+      } else {
+        navigate('/admin/products');
+      }
     } catch (err) {
-      notify('Failed to save product. Please try again.', 'error');
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Failed to save product.';
+      notify(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -352,17 +378,34 @@ export function AdminProductForm() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isEdit && form.slug && <PreviewButton to={`/product/${form.slug}`} />}
           {isEdit && (
             <button onClick={handleDuplicate} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-charcoal-600 transition-colors hover:bg-ivory-200">
               <Copy size={14} /> Duplicate
             </button>
           )}
-          <button onClick={() => handleSave(false)} disabled={saving} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200 disabled:opacity-50">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft
-          </button>
-          <button onClick={() => handleSave(true)} disabled={saving} className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Publish
-          </button>
+          {fromQuick ? (
+            <>
+              <button onClick={() => handleSave(false, 'details')} disabled={saving} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Details
+              </button>
+              <button onClick={() => handleSave(false)} disabled={saving} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft
+              </button>
+              <button onClick={() => handleSave(true, 'publish')} disabled={saving} className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Publish
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => handleSave(false)} disabled={saving} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2.5 text-xs font-medium text-navy-900 transition-colors hover:bg-ivory-200 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft
+              </button>
+              <button onClick={() => handleSave(true)} disabled={saving} className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Publish
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1014,7 +1057,7 @@ export function AdminProductForm() {
           </button>
         ) : (
           <button
-            onClick={() => handleSave(true)}
+            onClick={() => handleSave(true, fromQuick ? 'publish' : 'default')}
             disabled={saving}
             className="flex items-center gap-1.5 rounded-luxury bg-gold-500 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-navy-900 transition-colors hover:bg-gold-400 disabled:opacity-50"
           >

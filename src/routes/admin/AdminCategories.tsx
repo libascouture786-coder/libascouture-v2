@@ -5,6 +5,7 @@ import {
   Package, Check, Layers, Zap,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { MediaPicker } from '@/components/admin/MediaPicker';
 import {
   fetchCollections, insertCollection, updateCollection, deleteCollection,
@@ -121,6 +122,7 @@ export function AdminCategories() {
           <p className="mt-1 text-sm font-light text-charcoal-500">{collections.length} collections</p>
         </div>
         <div className="flex items-center gap-2">
+          <PreviewButton to="/collections" />
           <button onClick={() => navigate('/admin/quick-collection')} className="flex items-center gap-1.5 rounded-luxury border border-gold-300 bg-gold-50 px-4 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-gold-800 transition-colors hover:bg-gold-100">
             <Zap size={14} /> Quick Entry
           </button>

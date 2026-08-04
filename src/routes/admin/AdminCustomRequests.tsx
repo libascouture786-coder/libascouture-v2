@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Eye, X, Palette } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchCustomisationRequests, updateCustomisationRequest } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 
@@ -75,9 +76,12 @@ export function AdminCustomRequests() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Custom Design Requests</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} requests</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Custom Design Requests</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} requests</p>
+        </div>
+        <PreviewButton to="/create-your-own" />
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">

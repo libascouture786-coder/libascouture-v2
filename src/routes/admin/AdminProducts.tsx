@@ -5,6 +5,7 @@ import {
   Star, Package, Loader2,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -134,12 +135,15 @@ export function AdminProducts() {
           <h1 className="text-h2 font-serif font-medium text-navy-900">Products</h1>
           <p className="mt-1 text-sm font-light text-charcoal-500">{filtered.length} products in catalogue</p>
         </div>
-        <Link
-          to="/admin/products/new"
-          className="flex items-center gap-2 rounded-luxury bg-navy-900 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800"
-        >
-          <Plus size={16} /> Add Product
-        </Link>
+        <div className="flex items-center gap-2">
+          <PreviewButton to="/collections" />
+          <Link
+            to="/admin/products/new"
+            className="flex items-center gap-2 rounded-luxury bg-navy-900 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.1em] text-ivory-100 transition-colors hover:bg-navy-800"
+          >
+            <Plus size={16} /> Add Product
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -230,7 +234,7 @@ export function AdminProducts() {
                       <td className="px-4 py-3 text-sm font-light text-charcoal-600">{p.code ?? '—'}</td>
                       <td className="px-4 py-3 text-sm font-light text-charcoal-600 capitalize">{p.category_slug ?? '—'}</td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={p.status ?? ''} active={p.is_active} />
+                        <WorkflowBadge status={p.status ?? ''} active={p.is_active} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
@@ -265,7 +269,7 @@ export function AdminProducts() {
                     <Link to={`/admin/products/${p.id}`} className="text-sm font-medium text-navy-900">{p.title}</Link>
                     <p className="text-xs font-light text-charcoal-400">{p.code ?? '—'} • {p.category_slug ?? '—'}</p>
                   </div>
-                  <StatusBadge status={p.status ?? ''} active={p.is_active} />
+                  <WorkflowBadge status={p.status ?? ''} active={p.is_active} />
                   <button onClick={() => setDeleteId(p.id)} className="flex h-8 w-8 items-center justify-center rounded-luxury text-charcoal-400 hover:bg-red-50 hover:text-red-500">
                     <Trash2 size={15} />
                   </button>
@@ -296,15 +300,25 @@ export function AdminProducts() {
   );
 }
 
-function StatusBadge({ status, active }: { status: string; active: boolean }) {
-  if (!active) return <span className="rounded-full bg-ivory-200 px-2.5 py-0.5 text-[10px] font-medium text-charcoal-500">Draft</span>;
-  const config: Record<string, { label: string; class: string }> = {
-    signature: { label: 'Signature', class: 'bg-gold-50 text-gold-700' },
-    made_on_order: { label: 'Made to Order', class: 'bg-blue-50 text-blue-700' },
-    ready_to_ship: { label: 'Ready to Ship', class: 'bg-green-50 text-green-700' },
-    hidden: { label: 'Hidden', class: 'bg-charcoal-100 text-charcoal-500' },
-    archived: { label: 'Archived', class: 'bg-red-50 text-red-600' },
+function WorkflowBadge({ status, active }: { status: string; active: boolean }) {
+  if (active) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-[10px] font-medium text-green-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Published
+      </span>
+    );
+  }
+  const config: Record<string, { label: string; class: string; dot: string }> = {
+    signature: { label: 'Saved', class: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    made_on_order: { label: 'Saved', class: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    ready_to_ship: { label: 'Saved', class: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    hidden: { label: 'Saved', class: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    archived: { label: 'Saved', class: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
   };
-  const cfg = config[status] ?? { label: status || 'Active', class: 'bg-ivory-200 text-charcoal-600' };
-  return <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${cfg.class}`}>{cfg.label}</span>;
+  const cfg = config[status] ?? { label: 'Draft', class: 'bg-ivory-200 text-charcoal-500', dot: 'bg-charcoal-400' };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-medium ${cfg.class}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} /> {cfg.label}
+    </span>
+  );
 }

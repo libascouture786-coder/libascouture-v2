@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { TrendingUp, Eye, Search, MousePointerClick, BarChart3, Users } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchAnalyticsEvents } from '@/lib/admin-api';
 import type { AnalyticsEvent } from '@/lib/admin-types';
 
@@ -53,9 +54,12 @@ export function AdminAnalytics() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Analytics</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">Visitor activity and engagement insights.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Analytics</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">Visitor activity and engagement insights.</p>
+        </div>
+        <PreviewButton to="/" />
       </div>
 
       {loading ? (

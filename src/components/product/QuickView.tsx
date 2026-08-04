@@ -42,23 +42,23 @@ export function QuickView({ product, onClose }: QuickViewProps) {
   );
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm animate-fade-in" onClick={onClose} aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Quick view: ${product.title}`}
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-luxury-lg bg-ivory-100 shadow-soft-lg animate-scale-in no-scrollbar"
+        className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-luxury-lg bg-ivory-100 shadow-soft-lg animate-scale-in sm:max-h-[90vh]"
       >
         <button
           onClick={onClose}
           aria-label="Close quick view"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full text-charcoal-500 transition-colors hover:bg-ivory-200 hover:text-navy-900"
+          className="absolute right-4 top-4 z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/90 text-charcoal-500 transition-colors hover:bg-white hover:text-navy-900"
         >
           <X size={18} />
         </button>
 
-        <div className="grid gap-0 md:grid-cols-2">
+        <div className="grid flex-1 gap-0 overflow-y-auto md:grid-cols-2 no-scrollbar">
           {/* Gallery */}
           <div className="relative">
             <div className="relative aspect-[4/5] overflow-hidden">
@@ -95,7 +95,7 @@ export function QuickView({ product, onClose }: QuickViewProps) {
           </div>
 
           {/* Summary */}
-          <div className="flex flex-col p-6 sm:p-8">
+          <div className="flex flex-col p-5 pb-8 sm:p-8">
             <p className="heading-eyebrow">{product.status === 'signature' ? 'Signature Collection' : 'Made to Order'}</p>
             <h2 className="mt-3 text-h3 font-serif font-medium text-navy-900">{product.title}</h2>
             {product.excerpt && <p className="mt-2 text-sm font-light leading-relaxed text-charcoal-500">{product.excerpt}</p>}

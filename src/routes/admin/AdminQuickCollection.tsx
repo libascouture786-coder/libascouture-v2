@@ -4,6 +4,7 @@ import {
   Upload, Loader2, Save, Plus, Check, Layers, AlertCircle, FileEdit, X,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -322,7 +323,7 @@ export function AdminQuickCollection() {
     if (!safeTrim(p.product_type)) { notify('Please fill in the product type first.', 'error'); return; }
 
     if (p.savedProductId) {
-      navigate(`/admin/products/${p.savedProductId}`);
+      navigate(`/admin/products/${p.savedProductId}?from=quick`);
       return;
     }
 
@@ -333,7 +334,7 @@ export function AdminQuickCollection() {
       if (!productId) throw new Error('Database returned no product id');
       setProducts((prev) => prev.map((item) => item.id === id ? { ...item, savedProductId: productId } : item));
       notify('Product saved to Quick Collection draft. Opening full editor...', 'success');
-      navigate(`/admin/products/${productId}`);
+      navigate(`/admin/products/${productId}?from=quick`);
     } catch (err) {
       notify(`Failed to create product: ${extractErrorMessage(err)}`, 'error');
     } finally {
@@ -350,6 +351,7 @@ export function AdminQuickCollection() {
           <p className="mt-0.5 text-sm font-light text-charcoal-500">Upload multiple products at once — fill in basic details, then expand any product with the full editor</p>
         </div>
         <div className="flex items-center gap-2">
+          <PreviewButton to="/collections" />
           {autosaveStatus === 'saved' && products.length > 0 && (
             <span className="flex items-center gap-1 text-[10px] font-light text-green-600">
               <Check size={11} /> Auto-saved

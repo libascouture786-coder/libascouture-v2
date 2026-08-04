@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Save, Loader2, FileText, Globe } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchWebsitePages, updateWebsitePage } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -53,9 +54,12 @@ export function AdminPages() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Website Pages</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">Manage page content, visibility, and publishing.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Website Pages</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">Manage page content, visibility, and publishing.</p>
+        </div>
+        <PreviewButton to="/" />
       </div>
 
       {loading ? (

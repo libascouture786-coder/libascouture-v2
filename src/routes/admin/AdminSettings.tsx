@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Loader2, Settings, Phone, Clock, Globe, AlertTriangle } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchSetting, updateSetting } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 
@@ -81,9 +82,12 @@ export function AdminSettings() {
           <h1 className="text-h2 font-serif font-medium text-navy-900">Global Settings</h1>
           <p className="mt-1 text-sm font-light text-charcoal-500">Manage brand, contact, social, hours, and maintenance mode.</p>
         </div>
-        <button onClick={save} disabled={saving} className="flex items-center gap-2 rounded-luxury bg-navy-900 px-5 py-2.5 text-xs font-medium text-ivory-100 transition-colors hover:bg-navy-800 disabled:opacity-50">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Settings
-        </button>
+        <div className="flex items-center gap-2">
+          <PreviewButton to="/" />
+          <button onClick={save} disabled={saving} className="flex items-center gap-2 rounded-luxury bg-navy-900 px-5 py-2.5 text-xs font-medium text-ivory-100 transition-colors hover:bg-navy-800 disabled:opacity-50">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Settings
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">

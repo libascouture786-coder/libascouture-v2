@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Search, Loader2, Globe } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchSeoSettings, updateSeoSetting } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -52,9 +53,12 @@ export function AdminSeo() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">SEO Manager</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">Manage meta tags, Open Graph, and indexing for pages, products, and categories.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">SEO Manager</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">Manage meta tags, Open Graph, and indexing for pages, products, and categories.</p>
+        </div>
+        <PreviewButton to="/" />
       </div>
 
       <div className="mb-4 relative">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Eye, X, Calendar, MapPin, User, Phone, Mail, CheckCircle2, XCircle, CalendarClock } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchAppointments, updateAppointment } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 
@@ -72,9 +73,12 @@ export function AdminAppointments() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Appointments</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} appointments</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Appointments</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} appointments</p>
+        </div>
+        <PreviewButton to="/appointments" />
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">

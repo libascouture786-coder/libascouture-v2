@@ -4,6 +4,7 @@ import {
   Pencil, X, Save,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchHomepageSections, updateHomepageSection } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
@@ -58,9 +59,12 @@ export function AdminHomepage() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Homepage Manager</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">Control homepage sections — toggle visibility, reorder, and edit content.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Homepage Manager</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">Control homepage sections — toggle visibility, reorder, and edit content.</p>
+        </div>
+        <PreviewButton to="/" />
       </div>
 
       {loading ? (

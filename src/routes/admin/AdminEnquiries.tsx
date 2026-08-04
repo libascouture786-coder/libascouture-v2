@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Eye, X, Download, Phone, Mail, Calendar, MessageSquare, Flag } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchEnquiries, updateEnquiry } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import type { AdminEnquiry } from '@/lib/admin-types';
@@ -99,9 +100,12 @@ export function AdminEnquiries() {
           <h1 className="text-h2 font-serif font-medium text-navy-900">Enquiries</h1>
           <p className="mt-1 text-sm font-light text-charcoal-500">{display.length} enquiries</p>
         </div>
-        <button onClick={exportCsv} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2 text-xs font-medium text-charcoal-600 transition-colors hover:bg-ivory-200">
-          <Download size={14} /> Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <PreviewButton to="/contact" />
+          <button onClick={exportCsv} className="flex items-center gap-1.5 rounded-luxury border border-navy-100 bg-white px-4 py-2 text-xs font-medium text-charcoal-600 transition-colors hover:bg-ivory-200">
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">

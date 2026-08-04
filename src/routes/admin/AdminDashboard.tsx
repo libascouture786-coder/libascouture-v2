@@ -6,6 +6,7 @@ import {
    Clock, ArrowRight, TrendingUp,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PreviewButton } from '@/components/admin/PreviewButton';
 import { fetchAdminStats, fetchRecentActivity } from '@/lib/admin-api';
 import type { AdminStats, AdminActivity } from '@/lib/admin-types';
 
@@ -70,9 +71,12 @@ export function AdminDashboard() {
 
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-h2 font-serif font-medium text-navy-900">Dashboard</h1>
-        <p className="mt-1 text-sm font-light text-charcoal-500">Welcome back. Here's what's happening at LIBAS COUTURE.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-serif font-medium text-navy-900">Dashboard</h1>
+          <p className="mt-1 text-sm font-light text-charcoal-500">Welcome back. Here's what's happening at LIBAS COUTURE.</p>
+        </div>
+        <PreviewButton to="/" />
       </div>
 
       {/* Summary cards */}
