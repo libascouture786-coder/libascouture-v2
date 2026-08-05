@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Upload, Search, Trash2, X, Image as ImageIcon, Video, Loader2,
-  Folder, Grid3x3, Check,
+  Folder, Grid3x3, Check, Film,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchMedia, insertMedia } from '@/lib/admin-api';
@@ -36,7 +36,7 @@ export function MediaPicker({
   value,
   onChange,
   label = 'Image',
-  mediaType = 'image',
+  mediaType = 'both',
   folder = 'product_images',
   className = '',
 }: Props) {
@@ -138,9 +138,9 @@ export function MediaPicker({
             onChange={(e) => { if (e.target.files) handleFileUpload(e.target.files); e.target.value = ''; }}
           />
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gold-50 text-gold-500">
-            {uploading ? <Loader2 size={20} className="animate-pulse" /> : (mediaType === 'video' ? <Video size={20} strokeWidth={1.5} /> : <ImageIcon size={20} strokeWidth={1.5} />)}
+            {uploading ? <Loader2 size={20} className="animate-pulse" /> : (mediaType === 'image' ? <ImageIcon size={20} strokeWidth={1.5} /> : mediaType === 'video' ? <Video size={20} strokeWidth={1.5} /> : <Film size={20} strokeWidth={1.5} />)}
           </div>
-          <p className="mt-2 text-sm font-medium text-navy-900">{uploading ? 'Uploading...' : `Upload ${mediaType === 'video' ? 'video' : 'image'}`}</p>
+          <p className="mt-2 text-sm font-medium text-navy-900">{uploading ? 'Uploading...' : `Upload ${mediaType === 'video' ? 'video' : mediaType === 'both' ? 'image or video' : 'image'}`}</p>
           <p className="mt-1 text-xs font-light text-charcoal-400">Drag & drop or click to browse</p>
           <button
             type="button"
@@ -273,7 +273,7 @@ function MediaLibraryModal({
                 onDrop={(e) => { e.preventDefault(); setDragActive(false); handleUpload(e.dataTransfer.files); }}
                 className={`flex cursor-pointer items-center gap-1.5 rounded-luxury border-2 border-dashed px-3 py-2 text-xs font-medium transition-colors ${dragActive ? 'border-gold-500 bg-gold-50' : 'border-navy-100 hover:border-gold-300'}`}
               >
-                <input ref={fileInputRef} type="file" accept={mediaType === 'video' ? 'video/*' : 'image/*'} className="hidden" onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }} />
+                <input ref={fileInputRef} type="file" accept={mediaType === 'video' ? 'video/*' : mediaType === 'both' ? 'image/*,video/*' : 'image/*'} className="hidden" onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }} />
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Upload
               </div>
               <div className="relative flex-1">

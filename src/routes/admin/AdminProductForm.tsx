@@ -596,7 +596,7 @@ export function AdminProductForm() {
                 <MediaPicker
                   value={videoUrl}
                   onChange={setVideoUrl}
-                  mediaType="video"
+                  mediaType="both"
                   folder="product_videos"
                 />
               </Field>
