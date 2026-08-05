@@ -1,103 +1,17 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import {
   Trash2, Copy, RefreshCw, GripVertical, ImageIcon, X, Search,
-  Loader2, Check, ChevronRight, ChevronDown, Save, Maximize2,
+  Loader2, Check, ChevronRight, Save, Maximize2,
 } from 'lucide-react';
-import { colorSwatches, fabricOptions } from '@/config/customisation';
 import { fetchMedia } from '@/lib/admin-api';
 import type { MediaAsset } from '@/lib/admin-types';
 import type { QuickProduct } from './quick-collection-types';
-import { workTypeOptions, productTypeOptions } from './quick-collection-types';
-
-/* ── Searchable + typable combobox ───────────────────────────────── */
-function ComboField({
-  label, value, options, onChange, required, placeholder = 'Select or type',
-}: {
-  label: string;
-  value: string;
-  options: readonly string[];
-  onChange: (v: string) => void;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    if (!query) return options as string[];
-    const q = query.toLowerCase();
-    return (options as string[]).filter((o) => o.toLowerCase().includes(q));
-  }, [query, options]);
-
-  const displayValue = open ? query : value;
-
-  return (
-    <div>
-      <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">
-        {label}{required && ' *'}
-      </label>
-      <div ref={ref} className="relative">
-        <input
-          type="text"
-          value={displayValue}
-          onFocus={() => { setOpen(true); setQuery(value); }}
-          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (filtered.length > 0) { onChange(filtered[0]); setQuery(filtered[0]); }
-              setOpen(false);
-            }
-            if (e.key === 'Escape') setOpen(false);
-          }}
-          onBlur={() => { setTimeout(() => setOpen(false), 100); }}
-          className="w-full rounded-md border border-navy-50 bg-ivory-50 px-2 py-1.5 text-xs text-charcoal-800 placeholder:text-charcoal-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-200"
-          placeholder={placeholder}
-        />
-        <button
-          type="button"
-          onClick={() => { setOpen(!open); setQuery(value); }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-charcoal-300"
-        >
-          <ChevronDown size={12} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
-        </button>
-        {open && (
-          <div className="absolute z-30 mt-1 max-h-44 w-full overflow-y-auto rounded-md border border-navy-50 bg-white py-1 shadow-lg">
-            {filtered.length === 0 ? (
-              <div className="px-2 py-1.5 text-[10px] text-charcoal-400">
-                {query ? `Press Enter to use "${query}"` : 'No options'}
-              </div>
-            ) : (
-              filtered.map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); onChange(o); setQuery(o); setOpen(false); }}
-                  className={`flex w-full items-center justify-between px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-gold-50 ${
-                    value === o ? 'bg-gold-50 font-medium text-gold-900' : 'text-charcoal-700'
-                  }`}
-                >
-                  {o}
-                  {value === o && <Check size={10} strokeWidth={3} className="text-gold-600" />}
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import {
+  workTypeOptions, productTypeOptions, accessoryOptions,
+  visibilityFlagOptions, priorityOptions,
+  fabricOptions, colorSwatches,
+} from './quick-collection-types';
+import { MultiComboField } from '@/components/admin/MultiComboField';
 
 /* ── Image preview modal ─────────────────────────────────────────── */
 function ImagePreviewModal({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
@@ -282,12 +196,13 @@ function QuickProductCardBase({
             placeholder="Product name"
           />
         </div>
-        <ComboField
+        <MultiComboField
           label="Product Type"
-          value={product.product_type}
+          values={product.product_type}
           options={productTypeOptions}
           onChange={(v) => onUpdate(product.id, { product_type: v })}
           required
+          compact
           placeholder="Search or type"
         />
         {typeErr && <p className="-mt-1 text-[9px] text-red-500">{typeErr}</p>}
@@ -301,26 +216,54 @@ function QuickProductCardBase({
             placeholder="e.g. 25000"
           />
         </div>
-        <ComboField
+        <MultiComboField
           label="Color"
-          value={product.color}
+          values={product.color}
           options={colorSwatches.map((c) => c.name)}
           onChange={(v) => onUpdate(product.id, { color: v })}
+          compact
           placeholder="Search or type"
         />
-        <ComboField
+        <MultiComboField
           label="Fabric"
-          value={product.fabric}
+          values={product.fabric}
           options={fabricOptions}
           onChange={(v) => onUpdate(product.id, { fabric: v })}
+          compact
           placeholder="Search or type"
         />
-        <ComboField
+        <MultiComboField
           label="Work Type"
-          value={product.work_type}
+          values={product.work_type}
           options={workTypeOptions}
           onChange={(v) => onUpdate(product.id, { work_type: v })}
+          compact
           placeholder="Search or type"
+        />
+        <MultiComboField
+          label="Accessories"
+          values={product.accessories}
+          options={accessoryOptions}
+          onChange={(v) => onUpdate(product.id, { accessories: v })}
+          compact
+          placeholder="Search or type"
+        />
+        <MultiComboField
+          label="Visibility"
+          values={product.visibility_flags}
+          options={visibilityFlagOptions}
+          onChange={(v) => onUpdate(product.id, { visibility_flags: v })}
+          compact
+          placeholder="Select flags"
+        />
+        <MultiComboField
+          label="Priority"
+          values={product.priority}
+          options={priorityOptions}
+          onChange={(v) => onUpdate(product.id, { priority: v })}
+          compact
+          allowCustom={false}
+          placeholder="Select priority"
         />
 
         <button

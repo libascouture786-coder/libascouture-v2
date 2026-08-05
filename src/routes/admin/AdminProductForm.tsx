@@ -3,47 +3,43 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Copy, Loader2, Plus, X, Upload, Check,
   ImageIcon, ChevronLeft, ChevronRight, Shirt, Sparkles,
-  Palette, Scissors, Layers, FileText, LayoutGrid, Link2, Search,
+  Palette, Layers, FileText, LayoutGrid, Search,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { MediaPicker } from '@/components/admin/MediaPicker';
 import { PreviewButton } from '@/components/admin/PreviewButton';
+import { MultiComboField } from '@/components/admin/MultiComboField';
 import { supabase } from '@/lib/supabase';
 import { logActivity, fetchCategories, searchProducts, fetchMedia, insertMedia } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import { fabricOptions, colorSwatches } from '@/config/customisation';
 
-/* ── New option sets for product management ──────────────────────── */
-const websitePlacementOptions = [
-  'New Arrival', 'Featured', 'Signature Collection', 'Bestseller',
-  'Trending', 'Limited Edition', 'Homepage Hero', 'Staff Pick', "Editor's Choice",
-] as const;
-
-const visibilityOptions = [
-  { value: 'website', label: 'Website' },
-  { value: 'whatsapp_catalogue', label: 'WhatsApp Catalogue' },
-  { value: 'instagram_ready', label: 'Instagram Ready' },
-  { value: 'hidden', label: 'Hidden' },
-] as const;
-
-const priorityOptions = [
-  { value: 'VIP', label: 'VIP' },
-  { value: 'High', label: 'High' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'Low', label: 'Low' },
-] as const;
-
 /* ── Form option sets (per redesign spec) ─────────────────────────── */
+
+const occasionCategoryOptions = [
+  'Wedding (Bridal)', 'Engagement', 'Other Functions',
+] as const;
+
+const otherFunctionEvents = [
+  'Haldi', 'Mehendi', 'Sangeet', 'Cocktail', 'Reception',
+  'Nikah', 'Walima', 'Party', 'Photoshoot',
+] as const;
+
+function expandOccasions(selected: string[]): string[] {
+  const result: string[] = [];
+  for (const o of selected) {
+    if (o === 'Other Functions') {
+      for (const e of otherFunctionEvents) { if (!result.includes(e)) result.push(e); }
+    } else {
+      if (!result.includes(o)) result.push(o);
+    }
+  }
+  return result;
+}
 
 const productTypeOptions = [
   'Lehenga', 'Farshi', 'Trail Dress', 'Indo Western', 'Saree',
   'Suit', 'Sharara', 'Gharara', 'Gown', 'Anarkali',
-] as const;
-
-const occasionCategoryOptions = [
-  { value: 'Wedding (Bridal)', label: 'Wedding (Bridal)' },
-  { value: 'Engagement', label: 'Engagement' },
-  { value: 'Other Functions', label: 'Other Functions' },
 ] as const;
 
 const accessoryOptions = [
@@ -51,11 +47,7 @@ const accessoryOptions = [
   'Veil Dupatta', 'Cape', 'Jacket', 'Can Can',
 ] as const;
 
-const workTypeOptions = [
-  { value: 'Hand Work', label: 'Hand Work' },
-  { value: 'Machine Work', label: 'Machine Work' },
-  { value: 'Mix Work', label: 'Mix Work' },
-] as const;
+const workTypeOptions = ['Hand Work', 'Machine Work', 'Mix Work'] as const;
 
 const handWorkDetailOptions = [
   'Dabka', 'Zardozi', 'Thread Work', 'Pearl',
@@ -63,38 +55,32 @@ const handWorkDetailOptions = [
 ] as const;
 
 const customisationLevelOptions = [
-  { value: 'Fully Customisable', label: 'Fully Customisable' },
-  { value: 'Partially Customisable', label: 'Partially Customisable' },
-  { value: 'Not Customisable', label: 'Not Customisable' },
+  'Fully Customisable', 'Partially Customisable', 'Not Customisable',
 ] as const;
 
-/* Existing schema-backed selects kept for completeness */
-const priceTypes = [
-  { value: 'fixed', label: 'Fixed Price' },
-  { value: 'starting_from', label: 'Starting From' },
-  { value: 'price_on_request', label: 'Price on Request' },
-];
+const priceTypes = ['Fixed Price', 'Starting From', 'Price on Request'] as const;
 const availabilityOptions = [
-  { value: 'ready_to_ship', label: 'Ready In Stock' },
-  { value: 'made_on_order', label: 'Made On Order' },
-  { value: 'signature', label: 'Signature Collection' },
-  { value: 'limited_availability', label: 'Limited Availability' },
-  { value: 'hidden', label: 'Hidden' },
-  { value: 'archived', label: 'Archived' },
-];
+  'Ready In Stock', 'Made On Order', 'Signature Collection',
+  'Limited Availability', 'Hidden', 'Archived',
+] as const;
 
-type StepKey = 'media' | 'info' | 'details' | 'occasion' | 'accessories' | 'colours' | 'work' | 'placement' | 'related';
+const visibilityFlagOptions = [
+  'Featured', 'Bestseller', 'New Arrival', 'Trending',
+  'Signature Collection', 'Website', 'Instagram',
+  'WhatsApp Catalogue', 'Hidden',
+] as const;
+
+const priorityOptions = ['High', 'Medium', 'Low'] as const;
+
+type StepKey = 'media' | 'occasion' | 'info' | 'details' | 'colours' | 'visibility';
 
 const steps: { key: StepKey; label: string; icon: typeof ImageIcon }[] = [
   { key: 'media', label: 'Media', icon: ImageIcon },
+  { key: 'occasion', label: 'Occasion', icon: Sparkles },
   { key: 'info', label: 'Product Info', icon: Shirt },
   { key: 'details', label: 'Details', icon: FileText },
-  { key: 'occasion', label: 'Occasion', icon: Sparkles },
-  { key: 'accessories', label: 'Accessories', icon: Layers },
   { key: 'colours', label: 'Colours & Fabrics', icon: Palette },
-  { key: 'work', label: 'Work', icon: Scissors },
-  { key: 'placement', label: 'Placement', icon: LayoutGrid },
-  { key: 'related', label: 'Related', icon: Link2 },
+  { key: 'visibility', label: 'Visibility', icon: LayoutGrid },
 ];
 
 export function AdminProductForm() {
@@ -145,17 +131,17 @@ export function AdminProductForm() {
     title: '', slug: '', code: '', excerpt: '', description: '', story: '',
     styling_notes: '', event_suitability: '',
     category_id: '', category_slug: '', occasion: '', occasions: [] as string[],
-    price: '', price_type: 'price_on_request', status: 'made_on_order',
-    work_type: 'Hand Work',
-    product_type: '',
-    fabric_main: '', fabric_blouse: '', fabric_dupatta: '',
-    fabric_lining: '', fabric_dupatta1: '', fabric_dupatta2: '',
-    color_main: '', color_dupatta1: '', color_dupatta2: '',
+    price: '', price_type: [] as string[], status: [] as string[],
+    work_type: [] as string[],
+    product_type: [] as string[],
+    fabric_main: [] as string[], fabric_blouse: [] as string[], fabric_dupatta: [] as string[],
+    fabric_lining: [] as string[], fabric_dupatta1: [] as string[], fabric_dupatta2: [] as string[],
+    color_main: [] as string[], color_dupatta1: [] as string[], color_dupatta2: [] as string[],
     colors: [] as string[], embroidery: [] as string[],
     includes: [] as string[], customisation_options: [] as string[],
     accessories: [] as string[],
     hand_work_details: [] as string[],
-    customisation_level: 'Fully Customisable',
+    customisation_level: [] as string[],
     customisable: true, delivery_time: '', measurement_notes: '',
     is_featured: false, is_new: false, is_best_seller: false, is_active: false,
     seo_title: '', seo_description: '', image_alt_text: '',
@@ -163,8 +149,9 @@ export function AdminProductForm() {
     care_instructions: '',
     whats_included: [] as string[],
     website_placement: [] as string[],
+    visibility_flags: [] as string[],
     visibility: 'website',
-    priority: 'Medium',
+    priority: [] as string[],
     related_product_ids: [] as string[],
   });
 
@@ -182,19 +169,25 @@ export function AdminProductForm() {
         styling_notes: data.styling_notes ?? '', event_suitability: data.event_suitability ?? '',
         category_id: data.category_id ?? '', category_slug: data.category_slug ?? '',
         occasion: data.occasion ?? '', occasions: data.occasions ?? [],
-        price: data.price?.toString() ?? '', price_type: data.price_type ?? 'price_on_request',
-        status: data.status ?? 'made_on_order', work_type: data.work_type ?? 'Hand Work',
-        product_type: data.product_type ?? '',
-        fabric_main: data.fabric_main ?? '', fabric_blouse: data.fabric_blouse ?? '',
-        fabric_dupatta: data.fabric_dupatta ?? '', fabric_lining: data.fabric_lining ?? '',
-        fabric_dupatta1: data.fabric_dupatta1 ?? '', fabric_dupatta2: data.fabric_dupatta2 ?? '',
-        color_main: data.color_main ?? '', color_dupatta1: data.color_dupatta1 ?? '',
-        color_dupatta2: data.color_dupatta2 ?? '',
+        price: data.price?.toString() ?? '',
+        price_type: data.price_type ? [data.price_type] : [],
+        status: data.status ? [data.status] : [],
+        work_type: data.work_type ? [data.work_type] : [],
+        product_type: data.product_type ? [data.product_type] : [],
+        fabric_main: data.fabric_main ? [data.fabric_main] : [],
+        fabric_blouse: data.fabric_blouse ? [data.fabric_blouse] : [],
+        fabric_dupatta: data.fabric_dupatta ? [data.fabric_dupatta] : [],
+        fabric_lining: data.fabric_lining ? [data.fabric_lining] : [],
+        fabric_dupatta1: data.fabric_dupatta1 ? [data.fabric_dupatta1] : [],
+        fabric_dupatta2: data.fabric_dupatta2 ? [data.fabric_dupatta2] : [],
+        color_main: data.color_main ? [data.color_main] : [],
+        color_dupatta1: data.color_dupatta1 ? [data.color_dupatta1] : [],
+        color_dupatta2: data.color_dupatta2 ? [data.color_dupatta2] : [],
         colors: data.colors ?? [], embroidery: data.embroidery ?? [],
         includes: data.includes ?? [], customisation_options: data.customisation_options ?? [],
         accessories: data.accessories ?? [],
         hand_work_details: data.hand_work_details ?? [],
-        customisation_level: data.customisation_level ?? 'Fully Customisable',
+        customisation_level: data.customisation_level ? [data.customisation_level] : [],
         customisable: data.customisable ?? true, delivery_time: data.delivery_time ?? '',
         measurement_notes: data.measurement_notes ?? '',
         is_featured: data.is_featured ?? false, is_new: data.is_new ?? false,
@@ -205,10 +198,26 @@ export function AdminProductForm() {
         care_instructions: data.care_instructions ?? '',
         whats_included: data.includes ?? [],
         website_placement: data.website_placement ?? [],
+        visibility_flags: [],
         visibility: data.visibility ?? 'website',
-        priority: data.priority ?? 'Medium',
+        priority: data.priority ? [data.priority] : [],
         related_product_ids: data.related_product_ids ?? [],
       });
+      // Reconstruct visibility_flags from DB boolean/placement fields
+      const flags: string[] = [];
+      if (data.is_featured) flags.push('Featured');
+      if (data.is_best_seller) flags.push('Bestseller');
+      if (data.is_new) flags.push('New Arrival');
+      if (Array.isArray(data.website_placement)) {
+        if (data.website_placement.includes('Trending')) flags.push('Trending');
+        if (data.website_placement.includes('Signature Collection')) flags.push('Signature Collection');
+      }
+      if (data.visibility === 'website' || data.is_active) flags.push('Website');
+      if (data.visibility === 'instagram_ready') flags.push('Instagram');
+      if (data.visibility === 'whatsapp_catalogue') flags.push('WhatsApp Catalogue');
+      if (data.visibility === 'hidden') flags.push('Hidden');
+      setForm((prev) => ({ ...prev, visibility_flags: flags }));
+
       const { data: imgs } = await supabase.from('product_images').select('*').eq('product_id', id).order('sort_order');
       setImageUrls((imgs ?? []).map((img: { url: string }) => img.url));
       setVideoUrl(data.video_url ?? '');
@@ -221,13 +230,6 @@ export function AdminProductForm() {
   const update = (field: string, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
-  };
-
-  const toggleArray = (field: string, value: string) => {
-    setForm((prev) => {
-      const arr = prev[field as keyof typeof prev] as string[];
-      return { ...prev, [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value] };
-    });
   };
 
   const removeImage = (idx: number) => {
@@ -264,7 +266,45 @@ export function AdminProductForm() {
     const title = form.title.trim() || form.code.trim();
     const slug = form.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const safeThumb = Math.min(thumbnailIndex, Math.max(0, imageUrls.length - 1));
-    const { whats_included, category_id, ...rest } = form;
+
+    // Expand occasions (Other Functions → all function events)
+    const expandedOccasions = expandOccasions(form.occasions);
+
+    // Map multi-select arrays back to single-value DB fields
+    const priceTypeVal = (form.price_type[0] ?? 'price_on_request') === 'Fixed Price' ? 'fixed'
+      : (form.price_type[0] ?? 'price_on_request') === 'Starting From' ? 'starting_from'
+      : 'price_on_request';
+    const statusVal = form.status[0] ?? 'made_on_order';
+    const workTypeVal = form.work_type[0] ?? 'Hand Work';
+    const productTypeVal = form.product_type[0] ?? '';
+    const customisationLevelVal = form.customisation_level[0] ?? 'Fully Customisable';
+    const priorityVal = form.priority[0] ?? 'Medium';
+
+    // Map visibility flags to DB fields
+    const flags = form.visibility_flags;
+    const isFeatured = flags.includes('Featured');
+    const isBestSeller = flags.includes('Bestseller');
+    const isNew = flags.includes('New Arrival');
+    const isSignature = flags.includes('Signature Collection');
+    const isHidden = flags.includes('Hidden');
+    const onInstagram = flags.includes('Instagram');
+    const onWhatsApp = flags.includes('WhatsApp Catalogue');
+    const isTrending = flags.includes('Trending');
+
+    let visibility = 'website';
+    if (isHidden) visibility = 'hidden';
+    else if (onWhatsApp) visibility = 'whatsapp_catalogue';
+    else if (onInstagram) visibility = 'instagram_ready';
+
+    const websitePlacement: string[] = [];
+    if (isFeatured) websitePlacement.push('Featured');
+    if (isBestSeller) websitePlacement.push('Bestseller');
+    if (isNew) websitePlacement.push('New Arrival');
+    if (isTrending) websitePlacement.push('Trending');
+    if (isSignature) websitePlacement.push('Signature Collection');
+
+    const { whats_included, category_id, visibility_flags, priority, price_type, status, work_type, product_type, customisation_level, color_main, color_dupatta1, color_dupatta2, fabric_main, fabric_dupatta1, fabric_dupatta2, ...rest } = form;
+
     const productData = {
       ...rest,
       title,
@@ -273,8 +313,15 @@ export function AdminProductForm() {
       video_url: videoUrl || null,
       thumbnail_index: safeThumb,
       price: form.price ? parseFloat(form.price) : null,
-      is_active: publish ? true : form.is_active,
-      occasions: form.occasions,
+      is_active: publish ? true : (isHidden ? false : form.is_active),
+      occasions: expandedOccasions,
+      occasion: expandedOccasions[0] ?? null,
+      price_type: priceTypeVal,
+      status: statusVal,
+      work_type: workTypeVal,
+      product_type: productTypeVal,
+      customisation_level: customisationLevelVal,
+      priority: priorityVal,
       colors: form.colors,
       embroidery: form.embroidery,
       includes: whats_included,
@@ -283,9 +330,17 @@ export function AdminProductForm() {
       hand_work_details: form.hand_work_details,
       highlights: form.highlights,
       care_instructions: form.care_instructions || null,
-      website_placement: form.website_placement,
-      visibility: form.visibility,
-      priority: form.priority,
+      website_placement: websitePlacement,
+      visibility,
+      is_featured: isFeatured,
+      is_new: isNew,
+      is_best_seller: isBestSeller,
+      color_main: color_main[0] ?? null,
+      color_dupatta1: color_dupatta1[0] ?? null,
+      color_dupatta2: color_dupatta2[0] ?? null,
+      fabric_main: fabric_main[0] ?? null,
+      fabric_dupatta1: fabric_dupatta1[0] ?? null,
+      fabric_dupatta2: fabric_dupatta2[0] ?? null,
       related_product_ids: form.related_product_ids,
     };
 
@@ -362,7 +417,7 @@ export function AdminProductForm() {
   };
 
   const showDupatta2 = form.accessories.includes('Second Dupatta');
-  const showHandWorkDetails = form.work_type === 'Hand Work' || form.work_type === 'Mix Work';
+  const showHandWorkDetails = form.work_type.includes('Hand Work') || form.work_type.includes('Mix Work');
 
   return (
     <AdminLayout>
@@ -505,7 +560,7 @@ export function AdminProductForm() {
                     <div key={i} className={`group relative aspect-square overflow-hidden rounded-luxury border-2 transition-all ${
                       i === thumbnailIndex ? 'border-gold-500 shadow-gold' : 'border-navy-50'
                     }`}>
-                      <img src={url} alt={`Gallery ${i + 1}`} className="h-full w-full object-cover" />
+                      <img src={url} alt={`Gallery ${i + 1}`} className="h-full w-full object-contain" />
                       <button
                         onClick={() => setThumbnailIndex(i)}
                         aria-label={i === thumbnailIndex ? 'Thumbnail selected' : 'Set as thumbnail'}
@@ -549,10 +604,58 @@ export function AdminProductForm() {
           </div>
         )}
 
-        {/* STEP 2 — PRODUCT INFORMATION */}
+        {/* STEP 2 — OCCASION */}
+        {activeStep === 'occasion' && (
+          <div className="space-y-7">
+            <StepHeader step={2} title="Occasion" subtitle="Select one or more occasions this piece is suited for." />
+
+            <MultiComboField
+              label="Occasion"
+              values={form.occasions}
+              options={occasionCategoryOptions}
+              onChange={(v) => update('occasions', v)}
+              required
+              placeholder="Search or type occasion"
+            />
+
+            {form.occasions.includes('Other Functions') && (
+              <div className="rounded-luxury border border-gold-100 bg-gold-50/50 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-gold-800">Other Functions Selected</p>
+                <p className="mt-1.5 text-xs font-light text-charcoal-600">
+                  This product will automatically appear in all function pages (Haldi, Mehendi, Sangeet, Cocktail, Reception, Nikah, Walima, Party, Photoshoot) without creating duplicate products.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {otherFunctionEvents.map((e) => (
+                    <span key={e} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-navy-900 shadow-soft">
+                      {e}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {form.occasions.length > 0 && (
+              <div className="rounded-luxury border border-navy-50 bg-ivory-50 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-charcoal-600">Selected occasions</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {form.occasions.map((o) => (
+                    <span key={o} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-navy-900 shadow-soft">
+                      {o}
+                      <button onClick={() => update('occasions', form.occasions.filter((v) => v !== o))} className="text-charcoal-400 hover:text-red-500" aria-label={`Remove ${o}`}>
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* STEP 3 — PRODUCT INFORMATION */}
         {activeStep === 'info' && (
           <div className="space-y-7">
-            <StepHeader step={2} title="Product Information" subtitle="Core details that identify this couture piece." />
+            <StepHeader step={3} title="Product Information" subtitle="Core details that identify this couture piece." />
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Product Name *" error={errors.title}>
@@ -563,51 +666,74 @@ export function AdminProductForm() {
               </Field>
             </div>
 
-            <div>
-              <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Product Type * {errors.product_type && <span className="ml-1 text-red-500 normal-case tracking-normal">— {errors.product_type}</span>}</p>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-                {productTypeOptions.map((t) => (
-                  <SelectCard
-                    key={t}
-                    label={t}
-                    selected={form.product_type === t}
-                    onClick={() => update('product_type', t)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Price Type">
-                <select value={form.price_type} onChange={(e) => update('price_type', e.target.value)} className="input-luxury appearance-none">
-                  {priceTypes.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </Field>
-              {form.price_type !== 'price_on_request' && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <MultiComboField
+                label="Product Type *"
+                values={form.product_type}
+                options={productTypeOptions}
+                onChange={(v) => update('product_type', v)}
+                required
+                placeholder="Search or type"
+              />
+              <MultiComboField
+                label="Category"
+                values={form.category_id ? [categories.find((c) => c.id === form.category_id)?.title ?? ''] : []}
+                options={categories.map((c) => c.title)}
+                onChange={(v) => {
+                  const title = v[v.length - 1] ?? '';
+                  const cat = categories.find((c) => c.title === title);
+                  if (cat) { update('category_id', cat.id); update('category_slug', cat.slug); }
+                  else { update('category_id', ''); update('category_slug', ''); }
+                }}
+                placeholder="Search or type"
+              />
+              <MultiComboField
+                label="Work Type"
+                values={form.work_type}
+                options={workTypeOptions}
+                onChange={(v) => {
+                  update('work_type', v);
+                  if (!v.includes('Hand Work') && !v.includes('Mix Work')) update('hand_work_details', []);
+                }}
+                placeholder="Search or type"
+              />
+              <MultiComboField
+                label="Price Type"
+                values={form.price_type}
+                options={priceTypes}
+                onChange={(v) => update('price_type', v)}
+                placeholder="Search or type"
+              />
+              {form.price_type.includes('Fixed Price') || form.price_type.includes('Starting From') ? (
                 <Field label="Price (₹)">
                   <input type="number" value={form.price} onChange={(e) => update('price', e.target.value)} className="input-luxury" placeholder="0" />
                 </Field>
+              ) : (
+                <MultiComboField
+                  label="Availability"
+                  values={form.status}
+                  options={availabilityOptions}
+                  onChange={(v) => update('status', v)}
+                  placeholder="Search or type"
+                />
               )}
-              <Field label="Availability">
-                <select value={form.status} onChange={(e) => update('status', e.target.value)} className="input-luxury appearance-none">
-                  {availabilityOptions.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                </select>
-              </Field>
-              <Field label="Category">
-                <select
-                  value={form.category_id}
-                  onChange={(e) => {
-                    const cat = categories.find((c) => c.id === e.target.value);
-                    update('category_id', e.target.value);
-                    if (cat) update('category_slug', cat.slug);
-                  }}
-                  className="input-luxury appearance-none"
-                >
-                  <option value="">Select category</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                </select>
-              </Field>
+              <MultiComboField
+                label="Availability"
+                values={form.status}
+                options={availabilityOptions}
+                onChange={(v) => update('status', v)}
+                placeholder="Search or type"
+              />
             </div>
+
+            {/* Accessories — moved into Product Info */}
+            <MultiComboField
+              label="Accessories"
+              values={form.accessories}
+              options={accessoryOptions}
+              onChange={(v) => update('accessories', v)}
+              placeholder="Search or type accessories"
+            />
 
             <Field label="Short Summary">
               <textarea rows={2} value={form.excerpt} onChange={(e) => update('excerpt', e.target.value)} className="input-luxury resize-none" placeholder="A brief one-line summary for product cards..." />
@@ -615,10 +741,10 @@ export function AdminProductForm() {
           </div>
         )}
 
-        {/* STEP 3 — DETAILS */}
+        {/* STEP 4 — DETAILS */}
         {activeStep === 'details' && (
           <div className="space-y-7">
-            <StepHeader step={3} title="Product Details" subtitle="Rich descriptions, highlights, inclusions, and care guidance." />
+            <StepHeader step={4} title="Product Details" subtitle="Rich descriptions, highlights, inclusions, work details, and care guidance." />
 
             <Field label="Short Description">
               <textarea rows={2} value={form.excerpt} onChange={(e) => update('excerpt', e.target.value)} className="input-luxury resize-none" placeholder="A concise one-line summary shown on product cards..." />
@@ -628,6 +754,31 @@ export function AdminProductForm() {
               <textarea rows={5} value={form.description} onChange={(e) => update('description', e.target.value)} className="input-luxury resize-none" placeholder="Full narrative description of the outfit, its inspiration, and craftsmanship..." />
             </Field>
 
+            {/* Hand work details — conditional */}
+            {showHandWorkDetails && (
+              <MultiComboField
+                label="Hand Work Details"
+                values={form.hand_work_details}
+                options={handWorkDetailOptions}
+                onChange={(v) => update('hand_work_details', v)}
+                placeholder="Search or type"
+              />
+            )}
+
+            {/* Customisation level */}
+            <MultiComboField
+              label="Customisation"
+              values={form.customisation_level}
+              options={customisationLevelOptions}
+              onChange={(v) => {
+                update('customisation_level', v);
+                update('customisable', !v.includes('Not Customisable'));
+              }}
+              allowCustom={false}
+              placeholder="Select customisation level"
+            />
+
+            {/* Highlights */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs uppercase tracking-[0.12em] text-charcoal-600">Highlights</p>
@@ -640,7 +791,7 @@ export function AdminProductForm() {
               </div>
               {form.highlights.length === 0 ? (
                 <p className="rounded-luxury border border-dashed border-navy-100 bg-ivory-50 px-4 py-3 text-center text-xs font-light text-charcoal-400">
-                  No highlights added yet. Click “Add highlight” to begin.
+                  No highlights added yet. Click "Add highlight" to begin.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -670,6 +821,7 @@ export function AdminProductForm() {
               )}
             </div>
 
+            {/* What's Included */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs uppercase tracking-[0.12em] text-charcoal-600">What's Included</p>
@@ -712,86 +864,25 @@ export function AdminProductForm() {
               )}
             </div>
 
+            {/* Related Products */}
+            <div className="border-t border-navy-50 pt-6">
+              <RelatedProductPicker
+                selectedIds={form.related_product_ids}
+                onChange={(ids) => update('related_product_ids', ids)}
+                excludeId={id}
+              />
+            </div>
+
             <Field label="Care Instructions">
               <textarea rows={4} value={form.care_instructions} onChange={(e) => update('care_instructions', e.target.value)} className="input-luxury resize-none" placeholder="Dry clean only. Store in a cool, dry place away from direct sunlight..." />
             </Field>
           </div>
         )}
 
-        {/* STEP 4 — OCCASION */}
-        {activeStep === 'occasion' && (
-          <div className="space-y-7">
-            <StepHeader step={4} title="Occasion" subtitle="Select one or more occasions this piece is suited for." />
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {occasionCategoryOptions.map((o) => (
-                <SelectCard
-                  key={o.value}
-                  label={o.label}
-                  selected={form.occasions.includes(o.value)}
-                  onClick={() => toggleArray('occasions', o.value)}
-                  multi
-                />
-              ))}
-            </div>
-
-            {form.occasions.length > 0 && (
-              <div className="rounded-luxury border border-gold-100 bg-gold-50/50 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-gold-800">Selected occasions</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {form.occasions.map((o) => (
-                    <span key={o} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-navy-900 shadow-soft">
-                      {o}
-                      <button onClick={() => toggleArray('occasions', o)} className="text-charcoal-400 hover:text-red-500" aria-label={`Remove ${o}`}>
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 4 — ACCESSORIES */}
-        {activeStep === 'accessories' && (
-          <div className="space-y-7">
-            <StepHeader step={5} title="Accessories" subtitle="Optional add-ons included with this piece. Select all that apply." />
-
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-              {accessoryOptions.map((a) => (
-                <SelectCard
-                  key={a}
-                  label={a}
-                  selected={form.accessories.includes(a)}
-                  onClick={() => toggleArray('accessories', a)}
-                  multi
-                />
-              ))}
-            </div>
-
-            {form.accessories.length > 0 && (
-              <div className="rounded-luxury border border-navy-50 bg-ivory-50 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-charcoal-600">Included accessories</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {form.accessories.map((a) => (
-                    <span key={a} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-navy-900 shadow-soft">
-                      {a}
-                      <button onClick={() => toggleArray('accessories', a)} className="text-charcoal-400 hover:text-red-500" aria-label={`Remove ${a}`}>
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* STEP 5 — COLOURS & FABRICS */}
         {activeStep === 'colours' && (
           <div className="space-y-7">
-            <StepHeader step={6} title="Colours & Fabrics" subtitle="Specify the colour and fabric for each component of the outfit." />
+            <StepHeader step={5} title="Colours & Fabrics" subtitle="Specify the colour and fabric for each component of the outfit." />
 
             {/* Main outfit */}
             <div className="rounded-luxury-lg border border-navy-50 bg-ivory-50/50 p-5">
@@ -800,15 +891,20 @@ export function AdminProductForm() {
                 <h3 className="text-sm font-serif font-medium text-navy-900">Main Outfit</h3>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Colour">
-                  <ColorSelect value={form.color_main} onChange={(v) => update('color_main', v)} />
-                </Field>
-                <Field label="Fabric">
-                  <select value={form.fabric_main} onChange={(e) => update('fabric_main', e.target.value)} className="input-luxury appearance-none">
-                    <option value="">Select fabric</option>
-                    {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </Field>
+                <MultiComboField
+                  label="Colour"
+                  values={form.color_main}
+                  options={colorSwatches.map((c) => c.name)}
+                  onChange={(v) => update('color_main', v)}
+                  placeholder="Search or type"
+                />
+                <MultiComboField
+                  label="Fabric"
+                  values={form.fabric_main}
+                  options={fabricOptions}
+                  onChange={(v) => update('fabric_main', v)}
+                  placeholder="Search or type"
+                />
               </div>
             </div>
 
@@ -819,15 +915,20 @@ export function AdminProductForm() {
                 <h3 className="text-sm font-serif font-medium text-navy-900">Dupatta 1</h3>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Colour">
-                  <ColorSelect value={form.color_dupatta1} onChange={(v) => update('color_dupatta1', v)} />
-                </Field>
-                <Field label="Fabric">
-                  <select value={form.fabric_dupatta1} onChange={(e) => update('fabric_dupatta1', e.target.value)} className="input-luxury appearance-none">
-                    <option value="">Select fabric</option>
-                    {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </Field>
+                <MultiComboField
+                  label="Colour"
+                  values={form.color_dupatta1}
+                  options={colorSwatches.map((c) => c.name)}
+                  onChange={(v) => update('color_dupatta1', v)}
+                  placeholder="Search or type"
+                />
+                <MultiComboField
+                  label="Fabric"
+                  values={form.fabric_dupatta1}
+                  options={fabricOptions}
+                  onChange={(v) => update('fabric_dupatta1', v)}
+                  placeholder="Search or type"
+                />
               </div>
             </div>
 
@@ -844,172 +945,62 @@ export function AdminProductForm() {
                   </span>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Colour">
-                    <ColorSelect value={form.color_dupatta2} onChange={(v) => update('color_dupatta2', v)} />
-                  </Field>
-                  <Field label="Fabric">
-                    <select value={form.fabric_dupatta2} onChange={(e) => update('fabric_dupatta2', e.target.value)} className="input-luxury appearance-none">
-                      <option value="">Select fabric</option>
-                      {fabricOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </Field>
+                  <MultiComboField
+                    label="Colour"
+                    values={form.color_dupatta2}
+                    options={colorSwatches.map((c) => c.name)}
+                    onChange={(v) => update('color_dupatta2', v)}
+                    placeholder="Search or type"
+                  />
+                  <MultiComboField
+                    label="Fabric"
+                    values={form.fabric_dupatta2}
+                    options={fabricOptions}
+                    onChange={(v) => update('fabric_dupatta2', v)}
+                    placeholder="Search or type"
+                  />
                 </div>
               </div>
             )}
 
             {!showDupatta2 && (
               <p className="rounded-luxury border border-dashed border-navy-100 bg-ivory-50 px-4 py-3 text-center text-xs font-light text-charcoal-400">
-                Select “Second Dupatta” in the Accessories step to add Dupatta 2 details.
+                Select "Second Dupatta" in the Accessories (Product Info step) to add Dupatta 2 details.
               </p>
             )}
           </div>
         )}
 
-        {/* STEP 6 — WORK */}
-        {activeStep === 'work' && (
+        {/* STEP 6 — VISIBILITY */}
+        {activeStep === 'visibility' && (
           <div className="space-y-7">
-            <StepHeader step={7} title="Work" subtitle="Choose the embroidery work type, details, and customisation level." />
+            <StepHeader step={6} title="Visibility" subtitle="Control where this product appears and its merchandising priority." />
 
-            {/* Work type */}
-            <div>
-              <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Work Type</p>
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                {workTypeOptions.map((w) => (
-                  <SelectCard
-                    key={w.value}
-                    label={w.label}
-                    selected={form.work_type === w.value}
-                    onClick={() => {
-                      update('work_type', w.value);
-                      if (w.value === 'Machine Work') update('hand_work_details', []);
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
+            <MultiComboField
+              label="Flags & Placement"
+              values={form.visibility_flags}
+              options={visibilityFlagOptions}
+              onChange={(v) => update('visibility_flags', v)}
+              placeholder="Search or select flags"
+            />
 
-            {/* Hand work details — conditional */}
-            {showHandWorkDetails && (
-              <div className="animate-fade-in">
-                <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Hand Work Details</p>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-                  {handWorkDetailOptions.map((d) => (
-                    <SelectCard
-                      key={d}
-                      label={d}
-                      selected={form.hand_work_details.includes(d)}
-                      onClick={() => toggleArray('hand_work_details', d)}
-                      multi
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            <MultiComboField
+              label="Priority"
+              values={form.priority}
+              options={priorityOptions}
+              onChange={(v) => update('priority', v)}
+              allowCustom={false}
+              placeholder="Select priority"
+            />
 
-            {/* Customisation level */}
-            <div>
-              <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Customisation</p>
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                {customisationLevelOptions.map((c) => (
-                  <SelectCard
-                    key={c.value}
-                    label={c.label}
-                    selected={form.customisation_level === c.value}
-                    onClick={() => {
-                      update('customisation_level', c.value);
-                      update('customisable', c.value !== 'Not Customisable');
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Additional flags */}
-            <div className="border-t border-navy-50 pt-6">
-              <p className="mb-3 text-xs uppercase tracking-[0.12em] text-charcoal-600">Product Flags</p>
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  { key: 'is_featured', label: 'Featured', desc: 'Show in featured sections' },
-                  { key: 'is_new', label: 'New Arrival', desc: 'Mark as new arrival' },
-                  { key: 'is_best_seller', label: 'Best Seller', desc: 'Mark as best seller' },
-                  { key: 'is_active', label: 'Active', desc: 'Visible on website' },
-                ].map((flag) => (
-                  <label key={flag.key} className="flex cursor-pointer items-start gap-2.5 rounded-luxury border border-navy-50 bg-ivory-50 p-3.5 transition-colors hover:bg-ivory-100">
-                    <input
-                      type="checkbox"
-                      checked={form[flag.key as keyof typeof form] as boolean}
-                      onChange={(e) => update(flag.key, e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-navy-200 text-gold-500 focus:ring-gold-400"
-                    />
-                    <div>
-                      <p className="text-xs font-medium text-navy-900">{flag.label}</p>
-                      <p className="text-[11px] font-light text-charcoal-500">{flag.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 8 — PLACEMENT & VISIBILITY */}
-        {activeStep === 'placement' && (
-          <div className="space-y-7">
-            <StepHeader step={8} title="Placement & Visibility" subtitle="Control where this product appears and its merchandising priority." />
-
-            <div>
-              <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Website Placement (Multi Select)</p>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-3">
-                {websitePlacementOptions.map((p) => (
-                  <SelectCard
-                    key={p}
-                    label={p}
-                    selected={form.website_placement.includes(p)}
-                    onClick={() => toggleArray('website_placement', p)}
-                    multi
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Visibility</p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {visibilityOptions.map((v) => (
-                    <SelectCard
-                      key={v.value}
-                      label={v.label}
-                      selected={form.visibility === v.value}
-                      onClick={() => update('visibility', v.value)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Product Priority</p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {priorityOptions.map((p) => (
-                    <SelectCard
-                      key={p.value}
-                      label={p.label}
-                      selected={form.priority === p.value}
-                      onClick={() => update('priority', p.value)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {form.website_placement.length > 0 && (
+            {form.visibility_flags.length > 0 && (
               <div className="rounded-luxury border border-gold-100 bg-gold-50/50 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-gold-800">Selected placements</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-gold-800">Selected visibility</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {form.website_placement.map((p) => (
-                    <span key={p} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-navy-900 shadow-soft">
-                      {p}
-                      <button onClick={() => toggleArray('website_placement', p)} className="text-charcoal-400 hover:text-red-500" aria-label={`Remove ${p}`}>
+                  {form.visibility_flags.map((f) => (
+                    <span key={f} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-navy-900 shadow-soft">
+                      {f}
+                      <button onClick={() => update('visibility_flags', form.visibility_flags.filter((v) => v !== f))} className="text-charcoal-400 hover:text-red-500" aria-label={`Remove ${f}`}>
                         <X size={12} />
                       </button>
                     </span>
@@ -1017,19 +1008,6 @@ export function AdminProductForm() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* STEP 9 — RELATED PRODUCTS */}
-        {activeStep === 'related' && (
-          <div className="space-y-7">
-            <StepHeader step={9} title="Related Products" subtitle="Link complementary pieces by searching Product Name or Design Number." />
-
-            <RelatedProductPicker
-              selectedIds={form.related_product_ids}
-              onChange={(ids) => update('related_product_ids', ids)}
-              excludeId={id}
-            />
           </div>
         )}
       </div>
@@ -1095,65 +1073,6 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   );
 }
 
-function SelectCard({
-  label,
-  selected,
-  onClick,
-  multi = false,
-}: {
-  label: string;
-  selected: boolean;
-  onClick: () => void;
-  multi?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`relative flex items-center justify-center gap-2 rounded-luxury border px-3 py-3 text-center text-xs font-medium transition-all ${
-        selected
-          ? 'border-gold-500 bg-gold-50 text-gold-900 shadow-gold'
-          : 'border-navy-50 bg-white text-charcoal-600 hover:border-gold-300 hover:bg-ivory-50'
-      }`}
-    >
-      {multi && (
-        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
-          selected ? 'border-gold-500 bg-gold-500 text-navy-900' : 'border-navy-200 bg-white'
-        }`}>
-          {selected && <Check size={11} strokeWidth={3} />}
-        </span>
-      )}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function ColorSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="space-y-2.5">
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="input-luxury appearance-none">
-        <option value="">Select colour</option>
-        {colorSwatches.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-      </select>
-      <div className="flex flex-wrap gap-1.5">
-        {colorSwatches.map((c) => (
-          <button
-            key={c.name}
-            type="button"
-            onClick={() => onChange(c.name)}
-            aria-label={c.name}
-            title={c.name}
-            className={`h-7 w-7 rounded-full border-2 transition-all ${
-              value === c.name ? 'border-gold-500 scale-110 shadow-soft' : 'border-navy-100 hover:scale-105'
-            }`}
-            style={{ backgroundColor: c.hex }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function RelatedProductPicker({
   selectedIds,
   onChange,
@@ -1203,6 +1122,8 @@ function RelatedProductPicker({
   return (
     <div className="space-y-5">
       <div>
+        <p className="mb-2.5 text-xs uppercase tracking-[0.12em] text-charcoal-600">Related Products</p>
+        <p className="mb-2 text-xs font-light text-charcoal-500">Link complementary pieces by searching Product Name or Design Number.</p>
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-charcoal-300" />
           <input

@@ -11,7 +11,7 @@ import { useToast } from '@/context/ToastContext';
 import { QuickProductCard } from './QuickProductCard';
 import {
   type QuickProduct, occasionOptions, makeProduct, buildProductData,
-  safeTrim, extractErrorMessage,
+  safeTrim, extractErrorMessage, expandOccasions,
 } from './quick-collection-types';
 
 const AUTOSAVE_KEY = 'quick-collection-draft';
@@ -186,7 +186,7 @@ export function AdminQuickCollection() {
       if (!code) errs[`code-${p.id}`] = 'Required';
       else if (seenCodes.has(code.toLowerCase())) errs[`code-${p.id}`] = 'Duplicate';
       else seenCodes.add(code.toLowerCase());
-      if (!safeTrim(p.product_type)) errs[`type-${p.id}`] = 'Required';
+      if (!p.product_type || p.product_type.length === 0) errs[`type-${p.id}`] = 'Required';
     });
     return errs;
   }, [occasions, products]);
@@ -194,7 +194,7 @@ export function AdminQuickCollection() {
   const isValid = Object.keys(validationErrors).length === 0;
 
   const completedCount = useMemo(
-    () => products.filter((p) => safeTrim(p.code) && safeTrim(p.product_type)).length, [products],
+    () => products.filter((p) => safeTrim(p.code) && p.product_type && p.product_type.length > 0).length, [products],
   );
   const remainingCount = products.length - completedCount;
 
@@ -216,7 +216,8 @@ export function AdminQuickCollection() {
     }
 
     const isUpdate = Boolean(existingId);
-    const productData = buildProductData(p, occasions, isActive, index, status, isUpdate);
+    const expandedOccasions = expandOccasions(occasions);
+    const productData = buildProductData(p, expandedOccasions, isActive, index, status, isUpdate);
 
     let productId = existingId;
 
@@ -294,7 +295,7 @@ export function AdminQuickCollection() {
     const p = products.find((item) => item.id === id);
     if (!p) return;
     if (!safeTrim(p.code)) { notify('Please fill in the product code first.', 'error'); return; }
-    if (!safeTrim(p.product_type)) { notify('Please fill in the product type first.', 'error'); return; }
+    if (!p.product_type || p.product_type.length === 0) { notify('Please fill in the product type first.', 'error'); return; }
 
     setSavingId(id);
     try {
@@ -320,7 +321,7 @@ export function AdminQuickCollection() {
     const p = products.find((item) => item.id === id);
     if (!p) return;
     if (!safeTrim(p.code)) { notify('Please fill in the product code first.', 'error'); return; }
-    if (!safeTrim(p.product_type)) { notify('Please fill in the product type first.', 'error'); return; }
+    if (!p.product_type || p.product_type.length === 0) { notify('Please fill in the product type first.', 'error'); return; }
 
     if (p.savedProductId) {
       navigate(`/admin/products/${p.savedProductId}?from=quick`);
@@ -416,7 +417,7 @@ export function AdminQuickCollection() {
           <span className="text-[10px] font-light text-charcoal-400">— choose all that apply</span>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {occasionOptions.map((o) => {
+          {occasionOptions.map((o: string) => {
             const selected = occasions.includes(o);
             return (
               <button
@@ -433,6 +434,11 @@ export function AdminQuickCollection() {
             );
           })}
         </div>
+        {occasions.includes('Other Functions') && (
+          <p className="mt-3 rounded-luxury border border-gold-100 bg-gold-50/50 px-4 py-2.5 text-xs font-light text-gold-800">
+            "Other Functions" selected — products will automatically appear in all function pages (Haldi, Mehendi, Sangeet, Cocktail, Reception, Nikah, Walima, Party, Photoshoot) without creating duplicates.
+          </p>
+        )}
         {validationErrors.occasions && <p className="mt-2 text-xs text-red-500">{validationErrors.occasions}</p>}
       </section>
 
@@ -559,11 +565,13 @@ function PreviewAllModal({
                 <div className="space-y-1 p-3">
                   <p className="text-xs font-medium text-navy-900">{p.name || p.code}</p>
                   <p className="text-[10px] text-charcoal-400">Code: {p.code}</p>
-                  {p.product_type && <p className="text-[10px] text-charcoal-400">Type: {p.product_type}</p>}
+                  {p.product_type.length > 0 && <p className="text-[10px] text-charcoal-400">Type: {p.product_type.join(', ')}</p>}
                   {p.price && <p className="text-[10px] text-charcoal-400">Price: {p.price}</p>}
-                  {p.color && <p className="text-[10px] text-charcoal-400">Color: {p.color}</p>}
-                  {p.fabric && <p className="text-[10px] text-charcoal-400">Fabric: {p.fabric}</p>}
-                  {p.work_type && <p className="text-[10px] text-charcoal-400">Work: {p.work_type}</p>}
+                  {p.color.length > 0 && <p className="text-[10px] text-charcoal-400">Color: {p.color.join(', ')}</p>}
+                  {p.fabric.length > 0 && <p className="text-[10px] text-charcoal-400">Fabric: {p.fabric.join(', ')}</p>}
+                  {p.work_type.length > 0 && <p className="text-[10px] text-charcoal-400">Work: {p.work_type.join(', ')}</p>}
+                  {p.accessories.length > 0 && <p className="text-[10px] text-charcoal-400">Acc: {p.accessories.join(', ')}</p>}
+                  {p.visibility_flags.length > 0 && <p className="text-[10px] text-charcoal-400">Flags: {p.visibility_flags.join(', ')}</p>}
                 </div>
               </div>
             ))}

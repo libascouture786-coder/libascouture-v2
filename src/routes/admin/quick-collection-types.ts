@@ -6,14 +6,37 @@ export type QuickProduct = {
   name: string;
   code: string;
   price: string;
-  product_type: string;
-  color: string;
-  fabric: string;
-  work_type: string;
+  product_type: string[];
+  color: string[];
+  fabric: string[];
+  work_type: string[];
+  accessories: string[];
+  occasions: string[];
+  visibility_flags: string[];
+  priority: string[];
   savedProductId: string | null;
 };
 
-export const occasionOptions = ['Wedding', 'Engagement', 'Other Functions'] as const;
+export const occasionOptions = ['Wedding (Bridal)', 'Engagement', 'Other Functions'] as const;
+
+export const otherFunctionEvents = [
+  'Haldi', 'Mehendi', 'Sangeet', 'Cocktail', 'Reception',
+  'Nikah', 'Walima', 'Party', 'Photoshoot',
+] as const;
+
+export function expandOccasions(selected: string[]): string[] {
+  const result: string[] = [];
+  for (const o of selected) {
+    if (o === 'Other Functions') {
+      for (const e of otherFunctionEvents) {
+        if (!result.includes(e)) result.push(e);
+      }
+    } else {
+      if (!result.includes(o)) result.push(o);
+    }
+  }
+  return result;
+}
 
 export const workTypeOptions = ['Hand Work', 'Machine Work', 'Mix Work'] as const;
 
@@ -21,7 +44,30 @@ export const productTypeOptions = [
   'Lehenga', 'Farshi', 'Veil', 'Saree', 'Suit', 'Gown',
   'Trail Dress', 'Dupatta', 'Blouse', 'Skirt', 'Kurti',
   'Jacket', 'Cape', 'Shrug', 'Anarkali', 'Sharara',
+  'Indo Western', 'Gharara',
 ] as const;
+
+export const accessoryOptions = [
+  'Potli', 'Tassels (Latkan)', 'Extra Belt', 'Second Dupatta',
+  'Veil Dupatta', 'Cape', 'Jacket', 'Can Can',
+] as const;
+
+export const priceTypeOptions = [
+  'Fixed Price', 'Starting From', 'Price on Request',
+] as const;
+
+export const availabilityOptions = [
+  'Ready In Stock', 'Made On Order', 'Signature Collection',
+  'Limited Availability', 'Hidden', 'Archived',
+] as const;
+
+export const visibilityFlagOptions = [
+  'Featured', 'Bestseller', 'New Arrival', 'Trending',
+  'Signature Collection', 'Website', 'Instagram',
+  'WhatsApp Catalogue', 'Hidden',
+] as const;
+
+export const priorityOptions = ['High', 'Medium', 'Low'] as const;
 
 /* Database CHECK constraint only allows these values for work_type */
 const ALLOWED_WORK_TYPES = new Set([
@@ -59,6 +105,34 @@ export function buildProductData(
   const priceStr = safeTrim(product.price);
   const priceVal = priceStr ? parseFloat(priceStr) : null;
 
+  const productType = (product.product_type || [])[0] || null;
+  const workType = sanitizeWorkType((product.work_type || [])[0] || '');
+  const colorVal = (product.color || [])[0] || null;
+  const fabricVal = (product.fabric || [])[0] || null;
+
+  const flags = product.visibility_flags || [];
+  const isFeatured = flags.includes('Featured');
+  const isBestSeller = flags.includes('Bestseller');
+  const isNew = flags.includes('New Arrival');
+  const isSignature = flags.includes('Signature Collection');
+  const isHidden = flags.includes('Hidden');
+  const onInstagram = flags.includes('Instagram');
+  const onWhatsApp = flags.includes('WhatsApp Catalogue');
+
+  let visibility = 'website';
+  if (isHidden) visibility = 'hidden';
+  else if (onWhatsApp) visibility = 'whatsapp_catalogue';
+  else if (onInstagram) visibility = 'instagram_ready';
+
+  const websitePlacement: string[] = [];
+  if (isFeatured) websitePlacement.push('Featured');
+  if (isBestSeller) websitePlacement.push('Bestseller');
+  if (isNew) websitePlacement.push('New Arrival');
+  if (flags.includes('Trending')) websitePlacement.push('Trending');
+  if (isSignature) websitePlacement.push('Signature Collection');
+
+  const priority = (product.priority || [])[0] || 'Medium';
+
   const data: Record<string, unknown> = {
     title,
     code: safeTrim(product.code),
@@ -70,33 +144,33 @@ export function buildProductData(
     price_on_request: !priceVal,
     price_type: priceVal ? 'fixed' : 'price_on_request',
     status,
-    work_type: sanitizeWorkType(product.work_type),
+    work_type: workType,
     occasion: occasions[0] ?? null,
     occasions,
-    colors: product.color ? [product.color] : [],
-    color: product.color || null,
-    color_main: product.color || null,
-    fabric: product.fabric || null,
-    fabric_main: product.fabric || null,
-    product_type: product.product_type || null,
+    colors: product.color || [],
+    color: colorVal,
+    color_main: colorVal,
+    fabric: fabricVal,
+    fabric_main: fabricVal,
+    product_type: productType,
     embroidery: [],
     includes: [],
-    accessories: [],
+    accessories: product.accessories || [],
     hand_work_details: [],
     customisation_options: [],
     customisation_level: 'Fully Customisable',
     customisable: true,
     highlights: [],
     care_instructions: null,
-    website_placement: [],
-    visibility: 'website',
-    priority: 'Medium',
+    website_placement: websitePlacement,
+    visibility,
+    priority,
     related_product_ids: [],
     image_keys: [],
-    is_active: isActive,
-    is_featured: false,
-    is_new: true,
-    is_best_seller: false,
+    is_active: isActive && !isHidden,
+    is_featured: isFeatured,
+    is_new: isNew,
+    is_best_seller: isBestSeller,
     sort_order: index,
     thumbnail_index: 0,
     video_url: null,
@@ -119,10 +193,14 @@ export function makeProduct(imageUrl: string, code: string): QuickProduct {
     name: '',
     code,
     price: '',
-    product_type: '',
-    color: '',
-    fabric: '',
-    work_type: '',
+    product_type: [],
+    color: [],
+    fabric: [],
+    work_type: [],
+    accessories: [],
+    occasions: [],
+    visibility_flags: [],
+    priority: ['Medium'],
     savedProductId: null,
   };
 }
