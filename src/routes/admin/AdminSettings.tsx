@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Save, Loader2, Settings, Phone, Clock, Globe, AlertTriangle } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { PreviewButton } from '@/components/admin/PreviewButton';
+import { MediaPicker } from '@/components/admin/MediaPicker';
 import { fetchSetting, updateSetting } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 
 type BrandSettings = {
   brand_name: string;
+  logo_url: string;
   tagline: string;
   description: string;
   phone: string;
@@ -29,6 +31,7 @@ type BrandSettings = {
 
 const defaultSettings: BrandSettings = {
   brand_name: 'LIBAS COUTURE',
+  logo_url: '',
   tagline: 'Bridal Couture Atelier',
   description: 'Luxury bridal couture and customisation atelier.',
   phone: '+91 98765 43210',
@@ -95,6 +98,14 @@ export function AdminSettings() {
         <Section title="Brand" icon={Settings}>
           <Field label="Brand Name"><input type="text" value={settings.brand_name} onChange={(e) => update('brand_name', e.target.value)} className="input-luxury w-full" /></Field>
           <Field label="Tagline"><input type="text" value={settings.tagline} onChange={(e) => update('tagline', e.target.value)} className="input-luxury w-full" /></Field>
+          <div className="sm:col-span-2">
+            <MediaPicker
+              value={settings.logo_url}
+              onChange={(url) => update('logo_url', url)}
+              label="Brand Logo"
+              folder="brand_assets"
+            />
+          </div>
           <Field label="Description" full><textarea value={settings.description} onChange={(e) => update('description', e.target.value)} rows={2} className="input-luxury w-full resize-none" /></Field>
         </Section>
 

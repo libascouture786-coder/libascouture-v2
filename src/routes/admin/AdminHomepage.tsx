@@ -142,6 +142,56 @@ export function AdminHomepage() {
   );
 }
 
+/* ── Section image-field registry ─────────────────────────────────── */
+/* Each section_key maps to the image fields it should expose via MediaPicker. */
+const sectionImageFields: Record<string, { key: string; label: string; folder?: string }[]> = {
+  hero: [
+    { key: 'hero_image', label: 'Hero Background Image', folder: 'homepage_banners' },
+    { key: 'secondary_image', label: 'Secondary Image', folder: 'homepage_banners' },
+    { key: 'editorial_image', label: 'Editorial Image', folder: 'homepage_banners' },
+    { key: 'store_image', label: 'Store Image', folder: 'atelier' },
+  ],
+  announcement_bar: [],
+  trust_bar: [],
+  signature_collections: [
+    { key: 'banner_image', label: 'Banner Image', folder: 'homepage_banners' },
+  ],
+  shop_by_occasion: [
+    { key: 'wedding_image', label: 'Wedding (Bridal) Image', folder: 'category_images' },
+    { key: 'engagement_image', label: 'Engagement Image', folder: 'category_images' },
+    { key: 'reception_image', label: 'Reception Image', folder: 'category_images' },
+    { key: 'mehendi_image', label: 'Mehendi Image', folder: 'category_images' },
+    { key: 'haldi_image', label: 'Haldi Image', folder: 'category_images' },
+    { key: 'sangeet_image', label: 'Sangeet Image', folder: 'category_images' },
+  ],
+  featured_banner: [
+    { key: 'featured_image', label: 'Featured Banner Image', folder: 'homepage_banners' },
+  ],
+  embroidery_section: [
+    { key: 'embroidery_image', label: 'Embroidery Detail Image', folder: 'homepage_banners' },
+  ],
+  create_your_own: [
+    { key: 'create_image', label: 'Create Your Own Banner Image', folder: 'homepage_banners' },
+  ],
+  why_choose_us: [],
+  real_brides: [
+    { key: 'bride1_image', label: 'Bride 1 Image', folder: 'real_brides' },
+    { key: 'bride2_image', label: 'Bride 2 Image', folder: 'real_brides' },
+    { key: 'bride3_image', label: 'Bride 3 Image', folder: 'real_brides' },
+    { key: 'bride4_image', label: 'Bride 4 Image', folder: 'real_brides' },
+    { key: 'bride5_image', label: 'Bride 5 Image', folder: 'real_brides' },
+    { key: 'bride6_image', label: 'Bride 6 Image', folder: 'real_brides' },
+  ],
+  visit_atelier: [
+    { key: 'atelier_image', label: 'Atelier Banner Image', folder: 'atelier' },
+  ],
+  google_reviews: [],
+  newsletter: [],
+  final_cta: [
+    { key: 'cta_image', label: 'CTA Background Image', folder: 'homepage_banners' },
+  ],
+};
+
 /* ── Homepage Content Editor ──────────────────────────────────────── */
 function HomepageContentEditor({
   section,
@@ -151,26 +201,38 @@ function HomepageContentEditor({
   updateContent: (key: string, value: unknown) => void;
 }) {
   const content = section.content ?? {};
-  const keys = Object.keys(content);
 
-  const imageKeys = keys.filter((k) => {
+  /* Merge: defined image fields for this section + any existing image-like keys in content */
+  const definedFields = sectionImageFields[section.section_key] ?? [];
+  const definedKeys = definedFields.map((f) => f.key);
+
+  const existingImageKeys = Object.keys(content).filter((k) => {
+    if (definedKeys.includes(k)) return false;
     const v = content[k];
     return typeof v === 'string' && (v.includes('.jpg') || v.includes('.png') || v.includes('.webp') || v.includes('http'));
   });
-  const textKeys = keys.filter((k) => !imageKeys.includes(k));
+
+  const allImageFields = [
+    ...definedFields.map((f) => ({ ...f, value: (content[f.key] as string) ?? '' })),
+    ...existingImageKeys.map((k) => ({ key: k, label: k.replace(/_/g, ' '), folder: 'homepage_banners', value: content[k] as string })),
+  ];
+
+  const textKeys = Object.keys(content).filter((k) =>
+    !allImageFields.some((f) => f.key === k)
+  );
 
   return (
     <div className="space-y-4">
-      {imageKeys.length > 0 && (
+      {allImageFields.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-charcoal-400">Images</h3>
-          {imageKeys.map((key) => (
+          {allImageFields.map((field) => (
             <MediaPicker
-              key={key}
-              value={content[key] as string}
-              onChange={(url) => updateContent(key, url)}
-              label={key.replace(/_/g, ' ')}
-              folder="homepage_banners"
+              key={field.key}
+              value={field.value}
+              onChange={(url) => updateContent(field.key, url)}
+              label={field.label}
+              folder={field.folder ?? 'homepage_banners'}
             />
           ))}
         </div>
@@ -224,7 +286,7 @@ function HomepageContentEditor({
         </div>
       )}
 
-      {keys.length === 0 && (
+      {allImageFields.length === 0 && textKeys.length === 0 && (
         <p className="text-sm font-light text-charcoal-400">This section has no editable content fields.</p>
       )}
     </div>
