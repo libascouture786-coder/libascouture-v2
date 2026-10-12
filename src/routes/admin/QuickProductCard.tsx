@@ -72,6 +72,7 @@ type Props = {
   typeErr?: string;
   isDragging: boolean;
   showSaveSuccess: boolean;
+  categoryOptions: string[];
   onUpdate: (id: string, patch: Partial<QuickProduct>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -87,7 +88,7 @@ type Props = {
 };
 
 function QuickProductCardBase({
-  product, index, codeErr, typeErr, isDragging, showSaveSuccess,
+  product, index, codeErr, typeErr, isDragging, showSaveSuccess, categoryOptions,
   onUpdate, onRemove, onDuplicate, onReplaceImage, onReplaceImageUrl, onAddMoreDetails, onSaveInQuick, onDismissSaveSuccess,
   savingId,
   onDragStart, onDragEnter, onDragEnd,
@@ -206,6 +207,14 @@ function QuickProductCardBase({
           placeholder="Search or type"
         />
         {typeErr && <p className="-mt-1 text-[9px] text-red-500">{typeErr}</p>}
+        <MultiComboField
+          label="Category"
+          values={product.category}
+          options={categoryOptions}
+          onChange={(v) => onUpdate(product.id, { category: v })}
+          compact
+          placeholder="Search or type"
+        />
         <div>
           <label className="mb-0.5 block text-[9px] uppercase tracking-wide text-charcoal-400">Price</label>
           <input

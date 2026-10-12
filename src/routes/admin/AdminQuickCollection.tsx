@@ -6,7 +6,7 @@ import {
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { PreviewButton } from '@/components/admin/PreviewButton';
 import { supabase } from '@/lib/supabase';
-import { logActivity } from '@/lib/admin-api';
+import { logActivity, fetchCategories } from '@/lib/admin-api';
 import { useToast } from '@/context/ToastContext';
 import { QuickProductCard } from './QuickProductCard';
 import {
@@ -62,6 +62,7 @@ export function AdminQuickCollection() {
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [restored, setRestored] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragIdRef = useRef<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -74,6 +75,11 @@ export function AdminQuickCollection() {
       setProducts(draft.products);
       setRestored(true);
     }
+  }, []);
+
+  /* ── Fetch category titles for the card picker ─────────────────── */
+  useEffect(() => {
+    fetchCategories().then((cats) => setCategoryOptions(cats.map((c: { title: string }) => c.title)));
   }, []);
 
   /* ── Autosave ───────────────────────────────────────────────────── */
@@ -501,6 +507,7 @@ export function AdminQuickCollection() {
                   typeErr={validationErrors[`type-${p.id}`]}
                   isDragging={dragOverId === p.id}
                   showSaveSuccess={saveSuccessId === p.id}
+                  categoryOptions={categoryOptions}
                   onUpdate={updateProduct}
                   onRemove={removeProduct}
                   onDuplicate={duplicateProduct}

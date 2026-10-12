@@ -130,7 +130,7 @@ export function AdminProductForm() {
   const [form, setForm] = useState({
     title: '', slug: '', code: '', excerpt: '', description: '', story: '',
     styling_notes: '', event_suitability: '',
-    category_id: '', category_slug: '', occasion: '', occasions: [] as string[],
+    category_id: [] as string[], category_slug: '', occasion: '', occasions: [] as string[],
     price: '', price_type: [] as string[], status: [] as string[],
     work_type: [] as string[],
     product_type: [] as string[],
@@ -167,7 +167,7 @@ export function AdminProductForm() {
         title: data.title ?? '', slug: data.slug ?? '', code: data.code ?? '',
         excerpt: data.excerpt ?? '', description: data.description ?? '', story: data.story ?? '',
         styling_notes: data.styling_notes ?? '', event_suitability: data.event_suitability ?? '',
-        category_id: data.category_id ?? '', category_slug: data.category_slug ?? '',
+        category_id: data.category_id ? [data.category_id] : [], category_slug: data.category_slug ?? '',
         occasion: data.occasion ?? '', occasions: data.occasions ?? [],
         price: data.price?.toString() ?? '',
         price_type: data.price_type ? [data.price_type] : [],
@@ -309,7 +309,7 @@ export function AdminProductForm() {
       ...rest,
       title,
       slug,
-      category_id: category_id || null,
+      category_id: category_id[0] || null,
       video_url: videoUrl || null,
       thumbnail_index: safeThumb,
       price: form.price ? parseFloat(form.price) : null,
@@ -393,7 +393,7 @@ export function AdminProductForm() {
     const { error } = await supabase.from('products').insert({
       ...rest,
       slug: slugDup,
-      category_id: category_id || null,
+      category_id: category_id[0] || null,
       code: `${form.code}-COPY`,
       title: `${form.title} (Copy)`,
       includes: whats_included,
@@ -677,13 +677,13 @@ export function AdminProductForm() {
               />
               <MultiComboField
                 label="Category"
-                values={form.category_id ? [categories.find((c) => c.id === form.category_id)?.title ?? ''] : []}
+                values={form.category_id.map((id) => categories.find((c) => c.id === id)?.title ?? '').filter(Boolean)}
                 options={categories.map((c) => c.title)}
                 onChange={(v) => {
-                  const title = v[v.length - 1] ?? '';
-                  const cat = categories.find((c) => c.title === title);
-                  if (cat) { update('category_id', cat.id); update('category_slug', cat.slug); }
-                  else { update('category_id', ''); update('category_slug', ''); }
+                  const ids = v.map((t) => categories.find((c) => c.title === t)?.id).filter(Boolean) as string[];
+                  update('category_id', ids);
+                  const firstCat = categories.find((c) => c.id === ids[0]);
+                  update('category_slug', firstCat?.slug ?? '');
                 }}
                 placeholder="Search or type"
               />

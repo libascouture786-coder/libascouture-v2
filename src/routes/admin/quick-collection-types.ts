@@ -14,6 +14,7 @@ export type QuickProduct = {
   occasions: string[];
   visibility_flags: string[];
   priority: string[];
+  category: string[];
   savedProductId: string | null;
 };
 
@@ -139,7 +140,7 @@ export function buildProductData(
     excerpt: '',
     description: null,
     category_id: null,
-    category_slug: 'bridal',
+    category_slug: (product.category || [])[0] || 'bridal',
     price: priceVal,
     price_on_request: !priceVal,
     price_type: priceVal ? 'fixed' : 'price_on_request',
@@ -201,6 +202,7 @@ export function makeProduct(imageUrl: string, code: string): QuickProduct {
     occasions: [],
     visibility_flags: [],
     priority: ['Medium'],
+    category: [],
     savedProductId: null,
   };
 }
